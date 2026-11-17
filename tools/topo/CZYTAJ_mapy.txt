@@ -1,0 +1,14 @@
+ParaNav - mapa podkładowa dla ekranu TOPO
+==========================================
+
+1. Skopiuj katalog "maps" (razem z zawartością) do katalogu głównego karty SD:
+      karta SD/maps/<obszar>/info.txt
+      karta SD/maps/<obszar>/z10.pak ... z14.pak
+   Sposoby: czytnik kart w komputerze albo ParaNav: Menu > System > Tryb USB.
+2. Na urządzeniu: Menu > System > Wczytaj ponownie dane z SD (po trybie USB dzieje się to samo).
+3. Ekran TOPO (po ekranie MAPA) pokaże mapę, gdy jesteś w obszarze mapy.
+
+Pliki podglad_*.png pokazują fragment mapy wokół środka obszaru - nie trzeba ich kopiować.
+
+Dane mapy: (c) OpenStreetMap contributors, licencja ODbL (openstreetmap.org/copyright).
+Mapa jest pomocą orientacyjną, nie mapą lotniczą - przeszkody mogą być niekompletne.

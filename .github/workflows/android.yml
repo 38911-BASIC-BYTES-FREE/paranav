@@ -1,0 +1,26 @@
+# Builds the Android app (android/) on GitHub: push the project to a GitHub repository,
+# open "Actions" -> "Android APK" -> latest run -> download the "paranav-apk" artifact.
+name: Android APK
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paranav-apk
+          path: android/app/build/outputs/apk/release/*.apk

@@ -1,0 +1,9 @@
+Mapa terenu (SRTM, pliki .hgt) - wrzuc tutaj, do katalogu /terrain na karcie SD.
+
+Nazwa kafla = lewy dolny (poludniowo-zachodni) rog: N52E021.hgt obejmuje 52-53 N i 21-22 E.
+Pliki moga lezec bezposrednio tutaj albo w podkatalogach (np. /terrain/M34/N52E021.hgt),
+wielkosc liter nie ma znaczenia. Obslugiwane: 3" (2 884 802 B) i 1" (25 934 402 B).
+
+Polska: kafle N49..N54 x E014..E024.
+Zrodla: viewfinderpanoramas.org/dem3.html (paczki M33, M34, N33, N34)
+        lub NASA Earthdata SRTMGL3 (nazwa po rozpakowaniu np. N52E021.hgt).

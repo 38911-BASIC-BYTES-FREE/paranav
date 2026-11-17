@@ -1,0 +1,8 @@
+{
+  "name": "navcore",
+  "version": "0.1.0",
+  "description": "Portable flight computer core: NMEA, Kalman vario, wind, OpenAir airspace, terrain, IGC/GPX logger, e-paper UI",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": { "flags": "-std=gnu++17" }
+}
