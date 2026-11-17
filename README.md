@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ParaNav – komputer lotu dla motoparalotni
 
 Firmware dla **LilyGO T5 E-Paper S3 Pro** (ESP32-S3, e-papier 4,7″ 960×540, GPS MIA-M10Q/L76K) z dodatkowym barometrem **MS5611** na złączu QWIIC. Ekran w poziomie, dane ładowane z karty microSD.
@@ -202,3 +203,6 @@ tools/          generator fontów, podgląd ekranów, skrypty budowania, topo/ (
 sd_card/        przykładowa zawartość karty
 ```
 Licencje: dane mapy TOPO – © OpenStreetMap contributors, ODbL; epdiy – LGPL-3.0, SensorLib – MIT, fonty DejaVu – licencja Bitstream Vera/DejaVu.
+=======
+# paranav
+>>>>>>> 27bfddb68599795da26ee635efa77e9a471d3a94
