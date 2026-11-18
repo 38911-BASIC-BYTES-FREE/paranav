@@ -1,4 +1,5 @@
 #include "board.h"
+#include "i18n.h"
 
 #include <FS.h>
 #include <SD.h>
@@ -262,11 +263,11 @@ bool batteryInit() {
     gauge.init();  // same provisioning as LilyGO factory firmware; result not required
     uint16_t mv = 0;
     bool ok = gaugeWord(0x08, mv) && mv > 2500 && mv < 4600;
-    Serial.printf("[batt] BQ27220 %s (%u mV)\n", ok ? "OK" : "brak odpowiedzi", mv);
+    Serial.printf("[batt] BQ27220 %s (%u mV)\n", ok ? "OK" : TR("brak odpowiedzi", "no response"), mv);
     float v;
     bool ch;
     bool chg = chargerBattery(v, ch);
-    Serial.printf("[batt] BQ25896 ADC %s (%.2f V)\n", chg ? "OK" : "brak", v);
+    Serial.printf("[batt] BQ25896 ADC %s (%.2f V)\n", chg ? "OK" : TR("brak", "none"), v);
     return ok || chg;
 }
 
@@ -288,7 +289,7 @@ Battery batteryRead() {
     bool ch;
     if (chargerBattery(v, ch)) {
         b.ok = true;
-        b.source = "BQ25896 (napięcie)";
+        b.source = TR("BQ25896 (napięcie)", "BQ25896 (voltage)");
         b.volts = v;
         b.pct = lipoPercent(v);
         b.charging = ch;
@@ -300,7 +301,7 @@ Battery batteryRead() {
     bool g = Wire.endTransmission() == 0;
     Wire.beginTransmission(BQ25896_ADDR);
     bool c = Wire.endTransmission() == 0;
-    snprintf(why, sizeof why, "brak (55:%s 6B:%s)", g ? "jest" : "nie", c ? "jest" : "nie");
+    snprintf(why, sizeof why, TR("brak (55:%s 6B:%s)", "none (55:%s 6B:%s)"), g ? TR("jest", "yes") : TR("nie", "no"), c ? TR("jest", "yes") : TR("nie", "no"));
     b.source = why;
     return b;
 }
@@ -315,7 +316,7 @@ std::string i2cScan() {
             out += b;
         }
     }
-    return out.empty() ? "nic" : out;
+    return out.empty() ? TR("nic", "nothing") : out;
 }
 
 // ------------------------------------------------------------------ front light

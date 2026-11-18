@@ -52,8 +52,8 @@ public class Uploader {
      */
     public String upload(String kind, String name, byte[] data, boolean replace, Progress progress)
             throws IOException, InterruptedException {
-        if (data.length == 0) throw new ProtocolException("plik jest pusty");
-        if (data.length > Proto.MAX_FILE_SIZE) throw new ProtocolException("plik za duży (max 8 MB)");
+        if (data.length == 0) throw new ProtocolException(Tr.t("plik jest pusty", "the file is empty"));
+        if (data.length > Proto.MAX_FILE_SIZE) throw new ProtocolException(Tr.t("plik za duży (max 8 MB)", "file too large (max 8 MB)"));
         CRC32 crc = new CRC32();
         crc.update(data);
         String safeName = name.replace('\n', ' ').replace('\r', ' ').trim();
@@ -84,7 +84,7 @@ public class Uploader {
                 // probably the last packet of a window got lost: send the window again from the last ACK
                 if (++silent > 3) {
                     abortQuietly();
-                    throw new ProtocolException("urządzenie nie odpowiada");
+                    throw new ProtocolException(Tr.t("urządzenie nie odpowiada", "the device does not respond"));
                 }
                 sent = acked;
                 continue;
@@ -114,7 +114,7 @@ public class Uploader {
         List<String> out = new ArrayList<>();
         while (true) {
             String n = link.waitNotify(REPLY_TIMEOUT_MS);
-            if (n == null) throw new ProtocolException("urządzenie nie odpowiada");
+            if (n == null) throw new ProtocolException(Tr.t("urządzenie nie odpowiada", "the device does not respond"));
             if (n.startsWith("FILE ")) out.add(n.substring(5));
             else if (n.startsWith("OK LIST")) return out;
             else if (n.startsWith("ERR")) throw new ProtocolException(n);
@@ -142,7 +142,7 @@ public class Uploader {
         while (true) {
             long left = end - System.currentTimeMillis();
             String n = left > 0 ? link.waitNotify(left) : null;
-            if (n == null) throw new ProtocolException("brak odpowiedzi (" + prefix + ")");
+            if (n == null) throw new ProtocolException(Tr.t("brak odpowiedzi (", "no response (") + prefix + ")");
             if (n.startsWith(prefix)) return n;
             if (n.startsWith("ERR SEQ")) continue;  // late message from the data phase
             if (n.startsWith("ERR")) throw new ProtocolException(describe(n));
@@ -152,11 +152,11 @@ public class Uploader {
 
     /** Human readable text for device error codes. */
     public static String describe(String err) {
-        if (err.startsWith("ERR CRC")) return "błąd sumy kontrolnej – spróbuj ponownie";
-        if (err.startsWith("ERR SIZE")) return "zły rozmiar pliku";
-        if (err.startsWith("ERR SD")) return "błąd karty SD w urządzeniu";
-        if (err.startsWith("ERR KIND")) return "nieznany rodzaj pliku";
-        if (err.startsWith("ERR PATH")) return "niedozwolona ścieżka";
+        if (err.startsWith("ERR CRC")) return Tr.t("błąd sumy kontrolnej – spróbuj ponownie", "checksum error – try again");
+        if (err.startsWith("ERR SIZE")) return Tr.t("zły rozmiar pliku", "bad file size");
+        if (err.startsWith("ERR SD")) return Tr.t("błąd karty SD w urządzeniu", "SD card error on the device");
+        if (err.startsWith("ERR KIND")) return Tr.t("nieznany rodzaj pliku", "unknown file type");
+        if (err.startsWith("ERR PATH")) return Tr.t("niedozwolona ścieżka", "path not allowed");
         if (err.startsWith("ERR ")) return err.substring(4);
         return err;
     }

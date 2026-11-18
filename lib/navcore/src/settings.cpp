@@ -17,6 +17,7 @@ bool toBool(const std::string& v) { return v == "1" || v == "true" || v == "yes"
 }  // namespace
 
 #define NAV_SETTINGS_FIELDS(X)              \
+    X(lang, STR)                            \
     X(pilot, STR)                           \
     X(glider, STR)                          \
     X(gliderId, STR)                        \
@@ -46,7 +47,14 @@ bool toBool(const std::string& v) { return v == "1" || v == "true" || v == "yes"
     X(backlightPct, INT)                    \
     X(backlightOffMin, INT)                 \
     X(blueflyEnabled, BOOL)                 \
-    X(phoneEnabled, BOOL)
+    X(phoneEnabled, BOOL)                   \
+    X(fanetEnabled, BOOL)                   \
+    X(fanetTx, BOOL)                        \
+    X(fanetOnline, BOOL)                    \
+    X(fanetId, INT)                         \
+    X(trafficAlarm, BOOL)                   \
+    X(trafficWarnM, FLT)                    \
+    X(trafficVertM, FLT)
 
 bool Settings::load(const char* path) {
     FILE* f = std::fopen(path, "r");

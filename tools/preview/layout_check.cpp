@@ -19,6 +19,8 @@
 #include "geo.h"
 #include "terrain.h"
 #include "topo.h"
+#include "i18n.h"
+#include "fanet.h"
 #include "ui/canvas.h"
 #include "ui/help.h"
 #include "ui/menu.h"
@@ -58,17 +60,17 @@ static void analyse(const std::string& where, const std::vector<ui::DebugBox>& b
         const auto& t = boxes[i];
         if (t.text.empty()) continue;
         if (t.x0 < 0 || t.x1 >= ui::W || t.y0 < 0 || t.y1 >= ui::H)
-            report("poza ekranem: \"" + t.text + "\" x=" + std::to_string(t.x0) + ".." + std::to_string(t.x1) +
+            report("off screen: \"" + t.text + "\" x=" + std::to_string(t.x0) + ".." + std::to_string(t.x1) +
                    " y=" + std::to_string(t.y0) + ".." + std::to_string(t.y1));
         for (size_t j = 0; j < boxes.size(); j++) {
             if (i == j) continue;
             const auto& o = boxes[j];
             if (o.text.empty()) {
                 // separator crossing (1 px tolerance)
-                if (overlap(t, o, 1)) report("tekst na linii: \"" + t.text + "\"");
+                if (overlap(t, o, 1)) report("text on a line: \"" + t.text + "\"");
             } else if (j > i && overlap(t, o, 1)) {
                 if (mapMode) continue;  // map labels may overlap each other in dense areas
-                report("nakładanie: \"" + t.text + "\" / \"" + o.text + "\"");
+                report("overlap: \"" + t.text + "\" / \"" + o.text + "\"");
             }
         }
     }
@@ -125,6 +127,32 @@ static void render(World& w, const std::string& name) {
     }
     TopoView tv;
     u.topo = &topo; u.topoView = &tv;
+    // FANET traffic with worst-case texts: long names, big numbers, all levels
+    TrafficDb traffic;
+    {
+        const NavState& n = w.fc->state();
+        struct T { uint32_t a; float brg, dist, dz, hdg, kmh, climb; const char* name; bool ground; };
+        T ts[] = {{0x011234, 20, 120, 20, 180, 40, -12.3f, "Wiktoria Grzegorzewska-Żółć", false},
+                  {0x20ABCD, 300, 280, -60, 120, 300, 12.3f, "", false},
+                  {0x110042, 160, 19900, 4400, 10, 45, 2.5f, "Maksymilian Brzęczyszczykiewicz", false},
+                  {0xFD7777, 210, 9999, 0, 0, 0, 0, "Kierowca busa ekipy zawodów", true},
+                  {0xFD0001, 90, 2500, -9999, 270, 20, 0, "X", false}};
+        for (auto& t : ts) {
+            LatLon q = destination({n.lat, n.lon}, n.trackDeg + t.brg, t.dist);
+            FanetPacket p;
+            p.type = t.ground ? FT_GROUND : FT_TRACKING;
+            p.src = t.a; p.hasPos = true; p.lat = q.lat; p.lon = q.lon; p.altM = n.gpsAlt + t.dz;
+            p.headingDeg = (float)wrap360(n.trackDeg + t.hdg); p.speedKmh = t.kmh; p.climbMs = t.climb;
+            traffic.onPacket(p, 50000, -100);
+            if (*t.name) { FanetPacket nm; nm.type = FT_NAME; nm.src = t.a; nm.name = t.name; traffic.onPacket(nm, 50000, -100); }
+        }
+        TrafficOwn me;
+        me.valid = true; me.flying = true; me.lat = n.lat; me.lon = n.lon; me.altM = n.gpsAlt;
+        me.speedKmh = n.gsKmh; me.trackDeg = n.trackDeg;
+        traffic.evaluate(me, 59000);
+    }
+    u.traffic = &traffic.list();
+    w.sys.fanetId = "FD3C9A"; w.sys.fanetState = 2; w.sys.fanetTxCount = 999999; w.sys.fanetRxCount = 999999;
     ui::Canvas c(fb);
     std::vector<ui::DebugBox> boxes;
     ui::Canvas::debugSink = &boxes;
@@ -142,6 +170,10 @@ static void render(World& w, const std::string& name) {
         analyse(name + "/TOPO-z" + std::to_string(z), boxes, true);
         w.set.topoZoom = keep;
     }
+    boxes.clear();
+    c.clear();
+    ui::drawTrafficHint(c, u);
+    analyse(name + "/RUCH-podpowiedz", boxes, false);
     boxes.clear();
     ui::drawUsbDisk(c, u, false);
     analyse(name + "/USB", boxes, false);
@@ -182,15 +214,17 @@ DC 2
 )";
 
 int main(int argc, char** argv) {
+    if (const char* l = std::getenv("PARANAV_LANG"))
+        if (std::string(l) == "en") nav::setLang(nav::Lang::EN);
     std::string sd = argc > 1 ? argv[1] : "sd_card";
     std::string menuLabels = argc > 2 ? argv[2] : "/tmp/menu_labels.txt";
     World w;
-    w.asp.loadOpenAir((sd + "/airspace/PRZYKLAD_strefy.txt").c_str());
+    w.asp.loadOpenAir((sd + "/airspace/EXAMPLE_airspace.txt").c_str());
     w.asp.loadOpenAirText(kLongZones);
     w.asp.loadActivations((sd + "/airspace/activations.txt").c_str());
     w.wp.loadDir((sd + "/waypoints").c_str());
     w.wp.loadCupText("\"Lądowisko Zakrzewo Świerczynówek Wielkie\",LZS,PL,5206.000N,02050.000E,110.0m,3,,,,\n");
-    w.route.loadCup((sd + "/route/trasa.cup").c_str());
+    w.route.loadCup((sd + "/route/example_route.cup").c_str());
     w.terr.setDir("/tmp");
 
     // ---------------- scenario 1: normal flight
@@ -293,7 +327,7 @@ int main(int argc, char** argv) {
             if (l.empty()) continue;
             items.push_back(ui::MenuItem::num(l, [] { return -1060.5f; }, [](float) {}, -2000, 2000, 0.5f, 1, "km/h"));
         }
-        std::printf("menu: %zu pozycji\n", items.size());
+        std::printf("menu: %zu items\n", items.size());
         auto root = std::make_shared<ui::MenuItem>(ui::MenuItem::sub("root", {ui::MenuItem::sub("Wysokościomierz", items)}));
         ui::Menu m;
         m.open(root);
@@ -324,7 +358,7 @@ int main(int argc, char** argv) {
             while (*p) {
                 uint32_t cp = ui::utf8Next(p);
                 if (cp != 0x0A && !ui::Canvas::hasGlyph(ui::font_sb, cp)) {
-                    std::printf("  [POMOC/%s] brak znaku U+%04X w foncie\n", t.title, (unsigned)cp);
+                    std::printf("  [HELP/%s] glyph U+%04X missing in the font\n", t.title, (unsigned)cp);
                     problems++;
                 }
             }
@@ -355,7 +389,7 @@ int main(int argc, char** argv) {
             m.handleKey(ui::Key::NextLong);   // back to list
             m.handleKey(ui::Key::NextShort);  // next topic
         }
-        std::printf("pomoc: %zu tematów, %d stron\n", topics.size(), totalPages);
+        std::printf("help: %zu topics, %d pages\n", topics.size(), totalPages);
         ui::Canvas::debugSink = nullptr;
     }
     // menu fuzz: random keys/taps on a menu tree shaped like the device one (run under ASan)
@@ -395,7 +429,7 @@ int main(int argc, char** argv) {
             (void)m.describe();
             if (step % 7 == 0) m.draw(c);
         }
-        std::printf("menu fuzz: 20000 kroków, %d zamknięć\n", closes);
+        std::printf("menu fuzz: 20000 steps, %d closes\n", closes);
     }
     // boot + power screens
     {
@@ -415,6 +449,6 @@ int main(int argc, char** argv) {
         analyse("WYŁĄCZONY", boxes, false);
         ui::Canvas::debugSink = nullptr;
     }
-    std::printf("problemów: %d\n", problems);
+    std::printf("problems: %d\n", problems);
     return problems ? 1 : 0;
 }

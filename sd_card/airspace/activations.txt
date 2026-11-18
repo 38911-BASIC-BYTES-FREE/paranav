@@ -1,4 +1,4 @@
-# Aktywacje stref na dziś (czas UTC) - przepisz z AUP/UUP (np. aplikacja "AUP w Polsce" lub amc.pansa.pl)
-# date=RRRR-MM-DD musi zgadzać się z datą z GPS, inaczej status = "AKT.?" (traktowane jak aktywne)
+# Today's airspace activations (UTC) - copy them from the AUP/UUP (in Poland e.g. amc.pansa.pl)
+# date=YYYY-MM-DD must match the GPS date, otherwise the status is "ACT.?" (treated as active)
 date=2026-11-16
 EPTR99 0800-1400 1500-1600

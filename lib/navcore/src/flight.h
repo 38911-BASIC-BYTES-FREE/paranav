@@ -29,7 +29,7 @@ struct BaroSnapshot {
 };
 
 enum class Phase : uint8_t { Ground, Flying };
-enum class TargetKind : uint8_t { Home, Waypoint, Route, Landing };
+enum class TargetKind : uint8_t { Home, Waypoint, Route, Landing, Point };
 
 struct TrackPt {
     float lat, lon;
@@ -126,6 +126,10 @@ public:
     void setTargetWaypoint(int idx);      // index in WaypointDb
     void setTargetNearestLanding();
     void setTargetRoute(int idx);         // start route at idx
+    // free point, e.g. another pilot (FANET); position can be updated every second
+    void setTargetPoint(const std::string& name, double lat, double lon);
+    void updateTargetPoint(double lat, double lon);
+    uint32_t targetPointTag = 0;          // caller's id of the point (FANET address)
     void routeNext();
     void routePrev();
     void setEngine(bool on) { st_.engineOn = on; }
@@ -191,6 +195,8 @@ private:
     std::vector<TrackPt> recent_;  // last 90 s @1 Hz
     uint32_t trackTick_ = 0;
     int wptIdx_ = -1;
+    std::string ptName_;
+    double ptLat_ = 0, ptLon_ = 0;
 };
 
 }  // namespace nav

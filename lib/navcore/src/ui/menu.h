@@ -85,7 +85,7 @@ public:
     bool handleKey(Key k);
     bool handleTap(int x, int y);
     void draw(Canvas& c) const;
-    // Short description of where the user is (for crash breadcrumbs), e.g. "MENU>Paliwo>[Zużycie] edycja"
+    // Short description of where the user is (for crash breadcrumbs), e.g. "MENU>Fuel>[Fuel flow] edit"
     std::string describe() const;
     bool consumeDirty() {
         bool d = dirty_;

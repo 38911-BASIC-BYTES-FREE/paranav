@@ -5,6 +5,7 @@
 //   inputTask  (core 1, prio 3): buttons + touch -> event queue           (board.cpp)
 //   loop()     (Arduino task)  : 1 Hz flight logic, airspace, alerts, logger, UI rendering
 #include <Arduino.h>
+#include "i18n.h"
 #include <SD.h>
 #include <Wire.h>
 #include <dirent.h>
@@ -33,6 +34,8 @@
 #include "settings.h"
 #include "terrain.h"
 #include "topo.h"
+#include "fanet.h"
+#include "fanet_radio.h"
 #include "usb_disk.h"
 #include "ui/canvas.h"
 #include "ui/help.h"
@@ -67,6 +70,7 @@ static Terrain terrain;
 static TopoMap topo;          // background map tiles (/sd/maps)
 static TopoView topoView;     // TOPO screen view centre/zoom between frames
 static bool usbMode = false;  // SD card handed over to the PC as a USB drive
+static TrafficDb traffic;     // FANET aircraft around (decoded in loop(), radio runs in its own task)
 static FlightComputer fc(settings);
 static AlertManager alerts;
 static TrackLogger logger;
@@ -186,7 +190,7 @@ static void loadData() {
         loadDataImpl();
     } catch (const std::bad_alloc&) {
         // never reboot because of too much data on the card - keep what fits and report it
-        sys.loadErrors.push_back("Za mało pamięci na wszystkie dane z karty SD");
+        sys.loadErrors.push_back(TR("Za mało pamięci na wszystkie dane z karty SD", "Not enough memory for all data on the SD card"));
         Serial.println("[data] out of memory while loading");
     }
     sys.airspaceZones = (int)airspace.zones().size();
@@ -210,7 +214,7 @@ static void loadDataImpl() {
             if (n[0] == '.' || !endsWith(n, ".txt") || strcasecmp(n.c_str(), "activations.txt") == 0) continue;
             std::string p = std::string(PATH_AIRSPACE) + "/" + n;
             int k = airspace.loadOpenAir(p.c_str());
-            if (k <= 0) sys.loadErrors.push_back("Strefy: brak danych w " + n);
+            if (k <= 0) sys.loadErrors.push_back(TR("Strefy: brak danych w ", "Airspace: no data in ") + n);
         }
         closedir(d);
     }
@@ -242,13 +246,17 @@ static void loadDataImpl() {
 
     topo.setDir(PATH_MAPS);
     sys.topoAreas = topo.scan();
-    if (topo.errors()) sys.loadErrors.push_back("Mapy: " + topo.lastError());
+    if (topo.errors()) sys.loadErrors.push_back(TR("Mapy: ", "Maps: ") + topo.lastError());
     topoView.valid = false;
 }
 
 static void saveSettings() {
     if (sys.sdOk) settings.save(PATH_CONFIG);
 }
+
+// ------------------------------------------------------------------ language
+static void applyLanguage() { setLang(settings.lang == "en" ? Lang::EN : Lang::PL); }
+static bool menuRebuild = false;  // language changed inside the menu: rebuild it after the key is handled
 
 // ------------------------------------------------------------------ USB drive mode
 static void showMessage(const char* l1, const char* l2, uint32_t ms) {
@@ -263,22 +271,22 @@ static void showMessage(const char* l1, const char* l2, uint32_t ms) {
 // files closed, phone uploads off); sys.sdOk = false blocks settings saves while in this mode.
 static void usbEnter() {
     if (!usbdisk::supported()) {
-        showMessage("Tryb USB niedostępny", usbdisk::lastError(), 2500);
+        showMessage(TR("Tryb USB niedostępny", "USB mode not available"), usbdisk::lastError(), 2500);
         return;
     }
     if (fc.state().phase == Phase::Flying) {
-        showMessage("Tryb USB niedostępny w locie", "wyląduj i zakończ lot", 2500);
+        showMessage(TR("Tryb USB niedostępny w locie", "USB mode not available in flight"), TR("wyląduj i zakończ lot", "land and end the flight"), 2500);
         return;
     }
     if (!sys.sdOk) {
-        showMessage("Brak karty SD", "włóż kartę i uruchom ponownie", 2500);
+        showMessage(TR("Brak karty SD", "No SD card"), TR("włóż kartę i uruchom ponownie", "insert a card and restart"), 2500);
         return;
     }
     if (sys.phoneState == 3) {
-        showMessage("Trwa odbiór z telefonu", "poczekaj na koniec przesyłania", 2500);
+        showMessage(TR("Trwa odbiór z telefonu", "Receiving from the phone"), TR("poczekaj na koniec przesyłania", "wait until the transfer ends"), 2500);
         return;
     }
-    crumb("tryb USB: start");
+    crumb(TR("tryb USB: start", "USB mode: start"));
     logger.stop();
     sys.recording = false;
     saveSettings();
@@ -289,7 +297,7 @@ static void usbEnter() {
     if (!usbdisk::start()) {
         sys.sdOk = true;
         phone::setEnabled(settings.phoneEnabled);
-        showMessage("Tryb USB: błąd", usbdisk::lastError(), 2500);
+        showMessage(TR("Tryb USB: błąd", "USB mode: error"), usbdisk::lastError(), 2500);
         return;
     }
     usbMode = true;
@@ -298,7 +306,7 @@ static void usbEnter() {
 
 // Takes the card back: remount (the PC changed the FAT) and reload everything.
 static void usbExit() {
-    crumb("tryb USB: koniec, ponowne wczytanie");
+    crumb(TR("tryb USB: koniec, ponowne wczytanie", "USB mode: end, reloading"));
     usbdisk::stop();
     usbMode = false;
     sys.usbDisk = false;
@@ -306,77 +314,78 @@ static void usbExit() {
     sys.sdOk = board::sdInit();
     if (sys.sdOk) {
         settings.load(PATH_CONFIG);
+        applyLanguage();
         loadData();
         sys.sdFreeMb = board::sdFreeMb();
     } else {
-        sys.loadErrors.push_back("Karta SD nie odpowiada po trybie USB");
+        sys.loadErrors.push_back(TR("Karta SD nie odpowiada po trybie USB", "SD card not responding after USB mode"));
     }
     phone::setEnabled(settings.phoneEnabled);
 }
 
 // ------------------------------------------------------------------ menu
-static std::string onOff(bool b) { return b ? "TAK" : "NIE"; }
+static std::string onOff(bool b) { return b ? TR("TAK", "YES") : TR("NIE", "NO"); }
 
 __attribute__((noinline)) static ui::MenuItem menuLot() {
     using M = ui::MenuItem;
     std::vector<M> lot;
-    lot.push_back(M::act("Ustaw START tutaj", [] { fc.setHomeHere(); }, true));
-    lot.push_back(M::toggle("Silnik pracuje", [] { return onOff(fc.state().engineOn); },
+    lot.push_back(M::act(TR("Ustaw START tutaj", "Set HOME here"), [] { fc.setHomeHere(); }, true));
+    lot.push_back(M::toggle(TR("Silnik pracuje", "Engine running"), [] { return onOff(fc.state().engineOn); },
                   [] { fc.setEngine(!fc.state().engineOn); }));
-    lot.push_back(M::act("Zakończ lot (zamknij IGC)",
+    lot.push_back(M::act(TR("Zakończ lot (zamknij IGC)", "End flight (close IGC)"),
                [] {
                    logger.stop();
                    sys.recording = false;
                    fc.resetFlight();
                },
                true));
-    return M::sub("Lot", std::move(lot));
+    return M::sub(TR("Lot", "Flight"), std::move(lot));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuFuel() {
     using M = ui::MenuItem;
     std::vector<M> fuel;
-    fuel.push_back(M::num("Paliwo na starcie", [] { return settings.fuelStartL; }, [](float v) { settings.fuelStartL = v; }, 0, 40,
+    fuel.push_back(M::num(TR("Paliwo na starcie", "Fuel at takeoff"), [] { return settings.fuelStartL; }, [](float v) { settings.fuelStartL = v; }, 0, 40,
                0.5f, 1, "l"));
-    fuel.push_back(M::num("Zużycie", [] { return settings.fuelFlowLph; }, [](float v) { settings.fuelFlowLph = v; }, 0.5f, 20, 0.1f,
+    fuel.push_back(M::num(TR("Zużycie", "Fuel flow"), [] { return settings.fuelFlowLph; }, [](float v) { settings.fuelFlowLph = v; }, 0.5f, 20, 0.1f,
                1, "l/h"));
-    fuel.push_back(M::num("Rezerwa", [] { return settings.fuelReserveMin; }, [](float v) { settings.fuelReserveMin = v; }, 0, 60,
+    fuel.push_back(M::num(TR("Rezerwa", "Reserve"), [] { return settings.fuelReserveMin; }, [](float v) { settings.fuelReserveMin = v; }, 0, 60,
                5, 0, "min"));
-    fuel.push_back(M::num("Prędkość przelotowa", [] { return settings.cruiseKmh; }, [](float v) { settings.cruiseKmh = v; }, 15,
+    fuel.push_back(M::num(TR("Prędkość przelotowa", "Cruise speed"), [] { return settings.cruiseKmh; }, [](float v) { settings.cruiseKmh = v; }, 15,
                90, 1, 0, "km/h"));
-    fuel.push_back(M::act("Zatankowano do pełna", [] { fc.refuel(settings.fuelStartL); }, true));
-    return M::sub("Paliwo", std::move(fuel));
+    fuel.push_back(M::act(TR("Zatankowano do pełna", "Refuelled (full tank)"), [] { fc.refuel(settings.fuelStartL); }, true));
+    return M::sub(TR("Paliwo", "Fuel"), std::move(fuel));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuAlti() {
     using M = ui::MenuItem;
     std::vector<M> alti;
     alti.push_back(M::num("QNH", [] { return settings.qnhHpa; }, [](float v) { fc.setQnh(v); }, 950, 1060, 0.5f, 1, "hPa"));
-    alti.push_back(M::num("Wysokość teraz", [] { return std::isnan(fc.state().altMsl) ? 0.f : fc.state().altMsl; },
+    alti.push_back(M::num(TR("Wysokość teraz", "Altitude now"), [] { return std::isnan(fc.state().altMsl) ? 0.f : fc.state().altMsl; },
                [](float v) { fc.setAltitude(v); }, -100, 5000, 1, 0, "m"));
-    alti.push_back(M::toggle("Auto QNH (GPS/teren)", [] { return onOff(settings.autoQnh); },
+    alti.push_back(M::toggle(TR("Auto QNH (GPS/teren)", "Auto QNH (GPS/terrain)"), [] { return onOff(settings.autoQnh); },
                   [] { settings.autoQnh = !settings.autoQnh; }));
-    alti.push_back(M::act("Kalibruj ponownie z GPS",
+    alti.push_back(M::act(TR("Kalibruj ponownie z GPS", "Recalibrate from GPS"),
                [] {
                    settings.autoQnh = true;
                    fc.mutableState().qnhCalibrated = false;
                },
                true));
-    return M::sub("Wysokościomierz", std::move(alti));
+    return M::sub(TR("Wysokościomierz", "Altimeter"), std::move(alti));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuNav() {
     using M = ui::MenuItem;
     std::vector<M> navm;
-    navm.push_back(M::act("Cel: START (Go Home)", [] { fc.setTargetHome(); screen = ui::SCR_NAV; }, true));
-    navm.push_back(M::act("Cel: najbliższe lądowisko", [] { fc.setTargetNearestLanding(); screen = ui::SCR_NAV; }, true));
+    navm.push_back(M::act(TR("Cel: START (Go Home)", "Target: HOME (Go Home)"), [] { fc.setTargetHome(); screen = ui::SCR_NAV; }, true));
+    navm.push_back(M::act(TR("Cel: najbliższe lądowisko", "Target: nearest landing"), [] { fc.setTargetNearestLanding(); screen = ui::SCR_NAV; }, true));
     if (!route.pts.empty()) {
-        navm.push_back(M::act("Trasa " + route.name + ": start", [] { fc.setTargetRoute(0); screen = ui::SCR_NAV; }, true));
-        navm.push_back(M::act("Trasa: następny punkt", [] { fc.routeNext(); }, true));
-        navm.push_back(M::act("Trasa: poprzedni punkt", [] { fc.routePrev(); }, true));
+        navm.push_back(M::act(TR("Trasa ", "Route ") + route.name + ": start", [] { fc.setTargetRoute(0); screen = ui::SCR_NAV; }, true));
+        navm.push_back(M::act(TR("Trasa: następny punkt", "Route: next point"), [] { fc.routeNext(); }, true));
+        navm.push_back(M::act(TR("Trasa: poprzedni punkt", "Route: previous point"), [] { fc.routePrev(); }, true));
     }
     if (routeFiles.size() > 1)
-        navm.push_back(M::act("Zmień plik trasy", [] {
+        navm.push_back(M::act(TR("Zmień plik trasy", "Change route file"), [] {
             routeFileIdx = (routeFileIdx + 1) % (int)routeFiles.size();
             route.loadCup(routeFiles[routeFileIdx].c_str());
             sys.routePoints = (int)route.pts.size();
@@ -398,67 +407,106 @@ __attribute__((noinline)) static ui::MenuItem menuNav() {
             snprintf(lbl, sizeof lbl, "%s  (%.1f km)", waypoints.all()[idx].name.c_str(), d[k].first / 1000.f);
             list.push_back(M::act(lbl, [idx] { fc.setTargetWaypoint(idx); screen = ui::SCR_NAV; }, true));
         }
-        if (!list.empty()) navm.push_back(M::sub("Cel: punkt z listy", list));
+        if (!list.empty()) navm.push_back(M::sub(TR("Cel: punkt z listy", "Target: waypoint from list"), list));
     }
-    return M::sub("Nawigacja", std::move(navm));
+    return M::sub(TR("Nawigacja", "Navigation"), std::move(navm));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuGlide() {
     using M = ui::MenuItem;
     std::vector<M> glide;
-    glide.push_back(M::num("Doskonałość (bez silnika)", [] { return settings.glideRatio; }, [](float v) { settings.glideRatio = v; },
+    glide.push_back(M::num(TR("Doskonałość (bez silnika)", "Glide ratio (engine off)"), [] { return settings.glideRatio; }, [](float v) { settings.glideRatio = v; },
                2, 12, 0.1f, 1, ""));
-    glide.push_back(M::num("Prędkość ślizgu", [] { return settings.glideSpeedKmh; }, [](float v) { settings.glideSpeedKmh = v; }, 20,
+    glide.push_back(M::num(TR("Prędkość ślizgu", "Glide speed"), [] { return settings.glideSpeedKmh; }, [](float v) { settings.glideSpeedKmh = v; }, 20,
                60, 1, 0, "km/h"));
-    glide.push_back(M::num("Zapas wysokości", [] { return settings.glideMarginM; }, [](float v) { settings.glideMarginM = v; }, 0,
+    glide.push_back(M::num(TR("Zapas wysokości", "Safety height"), [] { return settings.glideMarginM; }, [](float v) { settings.glideMarginM = v; }, 0,
                500, 10, 0, "m"));
-    return M::sub("Szybowanie", std::move(glide));
+    return M::sub(TR("Szybowanie", "Glide"), std::move(glide));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuAlarms() {
     using M = ui::MenuItem;
     std::vector<M> alarms;
-    alarms.push_back(M::num("Strefa: ostrzeż przed", [] { return settings.asHorizWarnS; }, [](float v) { settings.asHorizWarnS = v; },
+    alarms.push_back(M::num(TR("Strefa: ostrzeż przed", "Airspace: warn before"), [] { return settings.asHorizWarnS; }, [](float v) { settings.asHorizWarnS = v; },
                10, 300, 10, 0, "s"));
-    alarms.push_back(M::num("Strefa: odległość", [] { return settings.asHorizWarnM; }, [](float v) { settings.asHorizWarnM = v; }, 100,
+    alarms.push_back(M::num(TR("Strefa: odległość", "Airspace: distance"), [] { return settings.asHorizWarnM; }, [](float v) { settings.asHorizWarnM = v; }, 100,
                3000, 100, 0, "m"));
-    alarms.push_back(M::num("Strefa: bufor pionowy", [] { return settings.asVertWarnM; }, [](float v) { settings.asVertWarnM = v; }, 0,
+    alarms.push_back(M::num(TR("Strefa: bufor pionowy", "Airspace: vertical buffer"), [] { return settings.asVertWarnM; }, [](float v) { settings.asVertWarnM = v; }, 0,
                500, 10, 0, "m"));
-    alarms.push_back(M::num("Niska wysokość (0=wył.)", [] { return settings.lowAglWarnM; }, [](float v) { settings.lowAglWarnM = v; },
+    alarms.push_back(M::num(TR("Niska wysokość (0=wył.)", "Low altitude (0=off)"), [] { return settings.lowAglWarnM; }, [](float v) { settings.lowAglWarnM = v; },
                0, 500, 10, 0, "m"));
-    alarms.push_back(M::num("Bateria", [] { return (float)settings.battWarnPct; }, [](float v) { settings.battWarnPct = (int)v; }, 0,
+    alarms.push_back(M::num(TR("Bateria", "Battery"), [] { return (float)settings.battWarnPct; }, [](float v) { settings.battWarnPct = (int)v; }, 0,
                50, 5, 0, "%"));
-    return M::sub("Alarmy", std::move(alarms));
+    return M::sub(TR("Alarmy", "Alarms"), std::move(alarms));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuDisp() {
     using M = ui::MenuItem;
     std::vector<M> disp;
-    disp.push_back(M::toggle("Mapa: północ u góry", [] { return onOff(settings.mapNorthUp); },
+    disp.push_back(M::toggle("Język / Language", [] { return std::string(langEn() ? "English" : "Polski"); },
+                             [] {
+                                 settings.lang = langEn() ? "pl" : "en";
+                                 applyLanguage();
+                                 menuRebuild = true;
+                             }));
+    disp.push_back(M::toggle(TR("Mapa: północ u góry", "Map: north up"), [] { return onOff(settings.mapNorthUp); },
                   [] { settings.mapNorthUp = !settings.mapNorthUp; }));
-    disp.push_back(M::num("Mapa: skala (0-5)", [] { return (float)settings.mapScaleIdx; },
+    disp.push_back(M::num(TR("Mapa: skala (0-5)", "Map: scale (0-5)"), [] { return (float)settings.mapScaleIdx; },
                [](float v) { settings.mapScaleIdx = (int)v; }, 0, 5, 1, 0, ""));
-    disp.push_back(M::num("TOPO: skala (10-14)", [] { return (float)settings.topoZoom; },
+    disp.push_back(M::num(TR("TOPO: skala (10-14)", "TOPO: zoom (10-14)"), [] { return (float)settings.topoZoom; },
                [](float v) { settings.topoZoom = (int)v; }, 10, 14, 1, 0, ""));
-    disp.push_back(M::toggle("Obróć ekran o 180°", [] { return onOff(settings.flip180); },
+    disp.push_back(M::toggle(TR("Obróć ekran o 180°", "Rotate screen 180°"), [] { return onOff(settings.flip180); },
                   [] {
                       settings.flip180 = !settings.flip180;
                       board::inputSetFlip(settings.flip180);
                   }));
-    disp.push_back(M::num("Pełne odświeżanie co", [] { return (float)settings.fullRefreshS; },
+    disp.push_back(M::num(TR("Pełne odświeżanie co", "Full refresh every"), [] { return (float)settings.fullRefreshS; },
                [](float v) { settings.fullRefreshS = (int)v; }, 0, 600, 30, 0, "s"));
-    disp.push_back(M::num("Strefa czasowa (UTC+)", [] { return settings.tzOffsetMin / 60.f; },
+    disp.push_back(M::num(TR("Strefa czasowa (UTC+)", "Time zone (UTC+)"), [] { return settings.tzOffsetMin / 60.f; },
                [](float v) { settings.tzOffsetMin = (int)(v * 60); }, -12, 14, 1, 0, "h"));
-    disp.push_back(M::toggle("Podświetlenie", [] { return onOff(backlightOn); }, [] { setBacklight(!backlightOn); }));
-    disp.push_back(M::num("Jasność podświetlenia", [] { return (float)settings.backlightPct; },
+    disp.push_back(M::toggle(TR("Podświetlenie", "Front light"), [] { return onOff(backlightOn); }, [] { setBacklight(!backlightOn); }));
+    disp.push_back(M::num(TR("Jasność podświetlenia", "Front light brightness"), [] { return (float)settings.backlightPct; },
                           [](float v) {
                               settings.backlightPct = (int)v;
                               if (backlightOn) board::backlight(settings.backlightPct);
                           },
                           5, 100, 5, 0, "%"));
-    disp.push_back(M::num("Podświetl. wyłącz po (0=nigdy)", [] { return (float)settings.backlightOffMin; },
+    disp.push_back(M::num(TR("Podświetl. wyłącz po (0=nigdy)", "Light off after (0=never)"), [] { return (float)settings.backlightOffMin; },
                           [](float v) { settings.backlightOffMin = (int)v; }, 0, 60, 1, 0, "min"));
-    return M::sub("Ekran i mapa", std::move(disp));
+    return M::sub(TR("Ekran i mapa", "Display and map"), std::move(disp));
+}
+
+static void applyFanetConfig() {
+    fanet::Config c;
+    c.rx = settings.fanetEnabled;
+    c.tx = settings.fanetEnabled && settings.fanetTx;
+    c.addr = ((uint32_t)kFanetManufacturer << 16) | (uint16_t)settings.fanetId;
+    c.name = settings.pilot == "Pilot" ? "" : settings.pilot;  // default placeholder: no name packet
+    fanet::configure(c);
+}
+
+__attribute__((noinline)) static ui::MenuItem menuFanet() {
+    using M = ui::MenuItem;
+    std::vector<M> f;
+    f.push_back(M::toggle(TR("FANET (radio LoRa)", "FANET (LoRa radio)"), [] { return onOff(settings.fanetEnabled); },
+                          [] {
+                              settings.fanetEnabled = !settings.fanetEnabled;
+                              applyFanetConfig();
+                          }));
+    f.push_back(M::toggle(TR("Nadawaj moją pozycję", "Transmit my position"), [] { return onOff(settings.fanetTx); },
+                          [] {
+                              settings.fanetTx = !settings.fanetTx;
+                              applyFanetConfig();
+                          }));
+    f.push_back(M::toggle(TR("Widoczny online (OGN)", "Visible online (OGN)"), [] { return onOff(settings.fanetOnline); },
+                          [] { settings.fanetOnline = !settings.fanetOnline; }));
+    f.push_back(M::toggle(TR("Ostrzeżenia o ruchu", "Traffic warnings"), [] { return onOff(settings.trafficAlarm); },
+                          [] { settings.trafficAlarm = !settings.trafficAlarm; }));
+    f.push_back(M::num(TR("Ostrzeż: odległość", "Warn: distance"), [] { return settings.trafficWarnM; },
+                       [](float v) { settings.trafficWarnM = v; }, 100, 2000, 50, 0, "m"));
+    f.push_back(M::num(TR("Ostrzeż: różnica wysokości", "Warn: height difference"), [] { return settings.trafficVertM; },
+                       [](float v) { settings.trafficVertM = v; }, 30, 500, 10, 0, "m"));
+    return M::sub(TR("FANET – inni piloci", "FANET – other pilots"), std::move(f));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuSys() {
@@ -470,16 +518,16 @@ __attribute__((noinline)) static ui::MenuItem menuSys() {
                                  bluefly::setEnabled(settings.blueflyEnabled);
                                  if (settings.blueflyEnabled) bluefly::retryStack();
                              }));
-    sysm.push_back(M::act("BlueFly: połącz ponownie", [] { bluefly::reconnect(); }, true));
-    sysm.push_back(M::toggle("Telefon (Bluetooth)", [] { return onOff(settings.phoneEnabled); },
+    sysm.push_back(M::act(TR("BlueFly: połącz ponownie", "BlueFly: reconnect"), [] { bluefly::reconnect(); }, true));
+    sysm.push_back(M::toggle(TR("Telefon (Bluetooth)", "Phone (Bluetooth)"), [] { return onOff(settings.phoneEnabled); },
                              [] {
                                  settings.phoneEnabled = !settings.phoneEnabled;
                                  phone::setEnabled(settings.phoneEnabled);
                                  if (settings.phoneEnabled) bluefly::retryStack();
                              }));
-    sysm.push_back(M::act("Wczytaj ponownie dane z SD", [] { loadData(); }, true));
-    sysm.push_back(M::act("Tryb USB – karta SD jako dysk", [] { usbEnter(); }, true));
-    sysm.push_back(M::num("VCOM e-papieru (restart)", [] { return (float)settings.vcomMv; },
+    sysm.push_back(M::act(TR("Wczytaj ponownie dane z SD", "Reload data from SD"), [] { loadData(); }, true));
+    sysm.push_back(M::act(TR("Tryb USB – karta SD jako dysk", "USB mode – SD card as a drive"), [] { usbEnter(); }, true));
+    sysm.push_back(M::num(TR("VCOM e-papieru (restart)", "E-paper VCOM (restart)"), [] { return (float)settings.vcomMv; },
                [](float v) { settings.vcomMv = (int)v; }, 1000, 3000, 10, 0, "mV"));
     return M::sub("System", std::move(sysm));
 }
@@ -487,15 +535,15 @@ __attribute__((noinline)) static ui::MenuItem menuSys() {
 __attribute__((noinline)) static ui::MenuItem menuOff() {
     using M = ui::MenuItem;
     std::vector<M> off;
-    off.push_back(M::act("TAK – zapisz lot i wyłącz", [] { shutdownDevice(); }, true));
-    return M::sub("Wyłącz urządzenie", std::move(off));
+    off.push_back(M::act(TR("TAK – zapisz lot i wyłącz", "YES – save flight and power off"), [] { shutdownDevice(); }, true));
+    return M::sub(TR("Wyłącz urządzenie", "Power off"), std::move(off));
 }
 
 __attribute__((noinline)) static ui::MenuItem menuHelp() {
     std::vector<ui::MenuItem> help;
     help.reserve(ui::helpTopics().size());
     for (const auto& t : ui::helpTopics()) help.push_back(ui::MenuItem::page(t.title, t.text));
-    return ui::MenuItem::sub("Pomoc", std::move(help));
+    return ui::MenuItem::sub(TR("Pomoc", "Help"), std::move(help));
 }
 
 // The menu is built on demand. Every sub-menu has its own (non-inlined) function so that the
@@ -506,13 +554,14 @@ static std::shared_ptr<ui::MenuItem> buildMenu() {
     auto root = std::make_shared<M>();
     root->kind = M::Submenu;
     root->label = "root";
-    root->children.reserve(10);
+    root->children.reserve(11);
     root->children.push_back(menuLot());
     root->children.push_back(menuFuel());
     root->children.push_back(menuAlti());
     root->children.push_back(menuNav());
     root->children.push_back(menuGlide());
     root->children.push_back(menuAlarms());
+    root->children.push_back(menuFanet());
     root->children.push_back(menuDisp());
     root->children.push_back(menuSys());
     root->children.push_back(menuHelp());
@@ -527,6 +576,21 @@ static void evaluateAlerts() {
     bool flying = n.phase == Phase::Flying;
     char b[96];
 
+    // FANET: alarm level (half the caution distance / height, or predicted to get there within 20 s)
+    {
+        const Traffic* t = traffic.list().empty() ? nullptr : &traffic.list()[0];
+        if (flying && settings.trafficAlarm && t && t->level >= 3) {
+            float rel = (float)wrap180(t->brgDeg - n.trackDeg);
+            snprintf(b, sizeof b, TR("RUCH! godz. %d, %d m", "TRAFFIC! %d o'clock, %d m"), clockPosition(rel), (int)std::lround(t->distM));
+            std::string title = b;
+            snprintf(b, sizeof b, "%s  %+d m%s", t->name.empty() ? fanetAddrStr(t->addr).c_str() : t->name.c_str(),
+                     (int)std::lround(t->dzM), t->distM > t->cpaM + 30 ? TR("  – zbliża się", "  – closing") : "");
+            alerts.set(AL_TRAFFIC, true, now, title, b, (int)(t->addr & 0x7FFFFFFF));
+        } else {
+            alerts.set(AL_TRAFFIC, false, now);
+        }
+    }
+
     const AirspaceHit* in = nullptr;
     const AirspaceHit* near = nullptr;
     for (auto& h : hits) {
@@ -537,52 +601,92 @@ static void evaluateAlerts() {
     if (in) {
         const Airspace& a = airspace.zones()[in->idx];
         snprintf(b, sizeof b, "%s  %s – %s", a.cls.c_str(), a.lower.label().c_str(), a.upper.label().c_str());
-        alerts.set(AL_AIRSPACE_IN, flying, now, "W STREFIE: " + a.name, b, in->idx);
+        alerts.set(AL_AIRSPACE_IN, flying, now, TR("W STREFIE: ", "INSIDE: ") + a.name, b, in->idx);
     } else {
         alerts.set(AL_AIRSPACE_IN, false, now);
     }
     if (near) {
         const Airspace& a = airspace.zones()[near->idx];
         if (near->insideH)
-            snprintf(b, sizeof b, "%s %d m", near->vpos == VertPos::Below ? "do podstawy" : "do pułapu",
+            snprintf(b, sizeof b, "%s %d m", near->vpos == VertPos::Below ? TR("do podstawy", "to floor") : TR("do pułapu", "to ceiling"),
                      (int)near->vertMarginM);
         else if (near->timeToEntryS >= 0)
-            snprintf(b, sizeof b, "wlot za %s  (%.1f km)", ui::fmtDur(near->timeToEntryS, false).c_str(),
+            snprintf(b, sizeof b, TR("wlot za %s  (%.1f km)", "entry in %s  (%.1f km)"), ui::fmtDur(near->timeToEntryS, false).c_str(),
                      near->distM / 1000.f);
         else
-            snprintf(b, sizeof b, "odległość %.1f km", near->distM / 1000.f);
-        alerts.set(AL_AIRSPACE_NEAR, flying, now, "STREFA: " + a.name, b, near->idx);
+            snprintf(b, sizeof b, TR("odległość %.1f km", "distance %.1f km"), near->distM / 1000.f);
+        alerts.set(AL_AIRSPACE_NEAR, flying, now, TR("STREFA: ", "AIRSPACE: ") + a.name, b, near->idx);
     } else {
         alerts.set(AL_AIRSPACE_NEAR, false, now);
     }
     bool fuelRet = flying && n.homeSet && n.fuelConfigured && n.returnMarginMin < 0;
-    snprintf(b, sizeof b, "paliwo %.1f l, na powrót potrzeba %.1f l", n.fuelLeftL, n.returnNeedL);
-    alerts.set(AL_FUEL_RETURN, fuelRet, now, "WRACAJ – PALIWO!", b);
+    snprintf(b, sizeof b, TR("paliwo %.1f l, na powrót potrzeba %.1f l", "fuel %.1f l, return needs %.1f l"), n.fuelLeftL, n.returnNeedL);
+    alerts.set(AL_FUEL_RETURN, fuelRet, now, TR("WRACAJ – PALIWO!", "TURN BACK – FUEL!"), b);
     bool fuelLow = flying && n.homeSet && n.fuelConfigured && n.returnMarginMin >= 0 && n.returnMarginMin < 10;
-    snprintf(b, sizeof b, "zapas na powrót tylko %d min", (int)n.returnMarginMin);
-    alerts.set(AL_FUEL_LOW, fuelLow, now, "MAŁO PALIWA", b);
+    snprintf(b, sizeof b, TR("zapas na powrót tylko %d min", "return margin only %d min"), (int)n.returnMarginMin);
+    alerts.set(AL_FUEL_LOW, fuelLow, now, TR("MAŁO PALIWA", "LOW FUEL"), b);
     bool low = flying && settings.lowAglWarnM > 0 && !std::isnan(n.aglTerrain) && n.aglTerrain < settings.lowAglWarnM;
-    snprintf(b, sizeof b, "%d m nad terenem", (int)n.aglTerrain);
-    alerts.set(AL_LOW_AGL, low, now, "NISKO!", b);
-    alerts.set(AL_GPS_LOST, flying && n.fixAgeS > 5, now, "BRAK GPS", "nawigacja i strefy nieaktualne");
+    snprintf(b, sizeof b, TR("%d m nad terenem", "%d m AGL"), (int)n.aglTerrain);
+    alerts.set(AL_LOW_AGL, low, now, TR("NISKO!", "LOW!"), b);
+    alerts.set(AL_GPS_LOST, flying && n.fixAgeS > 5, now, TR("BRAK GPS", "NO GPS"), TR("nawigacja i strefy nieaktualne", "navigation and airspace not updated"));
     // barometer lost during the flight (cable unplugged / BlueFly out of range)
     static bool hadBaro = false;
     if (n.baroOk) hadBaro = true;
     if (!flying) hadBaro = n.baroOk;
-    alerts.set(AL_BARO_LOST, flying && hadBaro && !n.baroOk, now, "BRAK BAROMETRU",
-               "wysokość i vario z GPS (mniej dokładne)");
+    alerts.set(AL_BARO_LOST, flying && hadBaro && !n.baroOk, now, TR("BRAK BAROMETRU", "NO BAROMETER"),
+               TR("wysokość i vario z GPS (mniej dokładne)", "altitude and vario from GPS (less accurate)"));
     snprintf(b, sizeof b, "%d %%", sys.battPct);
     alerts.set(AL_BATTERY, sys.battPct >= 0 && sys.battPct < settings.battWarnPct && !sys.charging, now,
-               "SŁABA BATERIA", b);
+               TR("SŁABA BATERIA", "LOW BATTERY"), b);
 }
 
 // ------------------------------------------------------------------ 1 Hz cycle
 static void onSecond(bool haveFix, const GpsFix& g, const BaroSnapshot& b) {
-    crumb(std::string("obliczenia 1 Hz") + (menu.isOpen() ? " (w menu)" : ""));
+    crumb(std::string(TR("obliczenia 1 Hz", "1 Hz computation")) + (menu.isOpen() ? TR(" (w menu)", " (in menu)") : ""));
     uint32_t up = millis() / 1000;
     if (haveFix) fc.update(g, b, up);
     else fc.updateNoGps(b, up);
     const NavState& n = fc.state();
+    // FANET: own position for the radio, evaluate traffic, follow a pilot chosen as target
+    {
+        fanet::OwnTx o;
+        o.valid = n.fix && n.fixAgeS < 3;
+        o.flying = n.phase == Phase::Flying;
+        o.pos.lat = n.lat;
+        o.pos.lon = n.lon;
+        o.pos.altM = n.gpsAlt;  // FANET devices send GPS altitude; compare like with like
+        o.pos.speedKmh = n.gsKmh;
+        o.pos.climbMs = n.vario1s;
+        o.pos.headingDeg = n.trackDeg;
+        o.pos.aircraft = FA_PARAGLIDER;
+        o.pos.online = settings.fanetOnline;
+        o.neighbours = traffic.recent(millis());
+        fanet::setOwn(o);
+        TrafficOwn me;
+        me.valid = n.fix;
+        me.flying = o.flying;
+        me.lat = n.lat;
+        me.lon = n.lon;
+        me.altM = n.gpsAlt;
+        me.speedKmh = n.gsKmh;
+        me.trackDeg = n.trackDeg;
+        me.climbMs = n.vario1s;
+        me.warnM = settings.trafficWarnM;
+        me.vertM = settings.trafficVertM;
+        traffic.evaluate(me, millis());
+        if (n.tgtKind == TargetKind::Point && fc.targetPointTag) {
+            const Traffic* t = traffic.find(fc.targetPointTag);
+            if (t && t->lastMs) fc.updateTargetPoint(t->lat, t->lon);
+        }
+        fanet::Status fs = fanet::status();
+        sys.fanetState = fs.state;
+        sys.fanetErr = fs.err;
+        sys.fanetTxCount = fs.tx;
+        sys.fanetRxCount = fs.rx;
+        sys.fanetRssi = fs.rssi;
+        sys.fanetOnline = settings.fanetOnline;
+        sys.fanetId = fanetAddrStr(((uint32_t)kFanetManufacturer << 16) | (uint16_t)settings.fanetId);
+    }
     {
         int ai = n.fix ? topo.areaFor(n.lat, n.lon) : -1;
         sys.topoArea = ai >= 0 ? topo.areas()[ai].title : "";
@@ -608,7 +712,7 @@ static void onSecond(bool haveFix, const GpsFix& g, const BaroSnapshot& b) {
             sys.recording = true;
             sys.logFile = logger.igcPath();
         } else {
-            sys.loadErrors.push_back("Nie mogę utworzyć pliku IGC");
+            sys.loadErrors.push_back(TR("Nie mogę utworzyć pliku IGC", "Cannot create the IGC file"));
         }
     }
     if (logger.active() && haveFix && n.timeValid) {
@@ -639,25 +743,25 @@ static void cycleTarget() {
 static const char* evName(board::Ev t) {
     using board::Ev;
     switch (t) {
-        case Ev::KeyShort: return "KLAWISZ krótko";
-        case Ev::KeyLong: return "KLAWISZ długo";
-        case Ev::BootShort: return "BOOT krótko";
-        case Ev::BootLong: return "BOOT długo";
-        case Ev::Tap: return "dotyk";
-        case Ev::BothShort: return "oba krótko";
+        case Ev::KeyShort: return TR("KLAWISZ krótko", "KEY short");
+        case Ev::KeyLong: return TR("KLAWISZ długo", "KEY long");
+        case Ev::BootShort: return TR("BOOT krótko", "BOOT short");
+        case Ev::BootLong: return TR("BOOT długo", "BOOT long");
+        case Ev::Tap: return TR("dotyk", "touch");
+        case Ev::BothShort: return TR("oba krótko", "both short");
         case Ev::PowerArm:
         case Ev::PowerCancel:
-        case Ev::PowerOff: return "oba długo";
+        case Ev::PowerOff: return TR("oba długo", "both long");
         default: return "?";
     }
 }
 
 static bool handleEventImpl(const board::Event& e);
 static bool handleEvent(const board::Event& e) {
-    std::string where = menu.isOpen() ? menu.describe() : std::string("ekran ") + ui::screenName(screen);
+    std::string where = menu.isOpen() ? menu.describe() : std::string(TR("ekran ", "screen ")) + ui::screenName(screen);
     crumb(where + ": " + evName(e.type));
     bool r = handleEventImpl(e);
-    crumb(std::string("po: ") + where + ": " + evName(e.type));
+    crumb(std::string(TR("po: ", "after: ")) + where + ": " + evName(e.type));
     return r;
 }
 
@@ -693,6 +797,11 @@ static bool handleEventImpl(const board::Event& e) {
             default: break;
         }
         if (menu.consumeDirty()) saveSettings();
+        if (menuRebuild) {  // re-open in the new language (the old menu tree is no longer executing)
+            menuRebuild = false;
+            saveSettings();
+            menu.open(buildMenu());
+        }
         return true;
     }
     int top = alerts.top();
@@ -721,6 +830,18 @@ static bool handleEventImpl(const board::Event& e) {
                     break;
                 }
             }
+            if (screen == ui::SCR_TRAFFIC) {  // tap a pilot in the list: fly to him / her
+                ui::UiContext uc;
+                uc.traffic = &traffic.list();
+                int i = ui::trafficRowAt(uc, e.x, e.y);
+                if (i >= 0) {
+                    const Traffic& t = traffic.list()[i];
+                    fc.setTargetPoint(t.name.empty() ? "ID " + fanetAddrStr(t.addr) : t.name, t.lat, t.lon);
+                    fc.targetPointTag = t.addr;
+                    screen = ui::SCR_NAV;
+                    break;
+                }
+            }
             if (screen == ui::SCR_TOPO) {  // upper half = zoom in, lower half = zoom out
                 int dz = ui::topoZoomTapAt(e.x, e.y);
                 if (dz) {
@@ -745,8 +866,8 @@ static bool handleEventImpl(const board::Event& e) {
 
 // ------------------------------------------------------------------ rendering
 static void render(bool full) {
-    crumb(std::string("rysowanie: ") + (menu.isOpen() ? menu.describe() : ui::screenName(screen)) +
-          (full ? " (pełne)" : ""));
+    crumb(std::string(TR("rysowanie: ", "drawing: ")) + (menu.isOpen() ? menu.describe() : ui::screenName(screen)) +
+          (full ? TR(" (pełne)", " (full)") : ""));
     ui::Canvas c(board::framebuffer());
     c.setFlip(settings.flip180);
     ui::UiContext u;
@@ -761,6 +882,7 @@ static void render(bool full) {
     u.alerts = &alerts;
     u.sys = &sys;
     u.topo = sys.sdOk ? &topo : nullptr;
+    u.traffic = &traffic.list();
     u.topoView = &topoView;
     if (usbMode) {
         ui::drawUsbDisk(c, u, usbdisk::hostConnected());
@@ -776,6 +898,8 @@ static void render(bool full) {
         ui::drawScreen(c, screen, u);
         int a = alerts.top();
         if (a >= 0) ui::drawAlertBanner(c, u, a);
+        else if (settings.trafficAlarm && screen != ui::SCR_TRAFFIC && fc.state().phase == Phase::Flying)
+            ui::drawTrafficHint(c, u);  // caution level: small box, top right
     }
     if (!menu.isOpen()) ui::drawTransferBanner(c, u);
     if (powerArming) ui::drawPowerHint(c);
@@ -847,7 +971,7 @@ static void shutdownDevice() {
     c.setFlip(settings.flip180);
     if (board::usbPowered()) {
         // BQ25896 cannot cut power while USB is connected
-        ui::drawPowerOff(c, "Odłącz kabel USB", "przy zasilaniu z USB wyłączenie nie jest możliwe");
+        ui::drawPowerOff(c, TR("Odłącz kabel USB", "Unplug the USB cable"), TR("przy zasilaniu z USB wyłączenie nie jest możliwe", "the device cannot power off while on USB power"));
         board::displayUpdate(true);
         delay(3000);
         return;
@@ -861,12 +985,12 @@ static void shutdownDevice() {
     sys.recording = false;
     saveSettings();
     SD.end();
-    ui::drawPowerOff(c, "WYŁĄCZONY", "Włączanie: przycisk PWR lub podłączenie USB");
+    ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"));
     board::displayUpdate(true);  // e-paper keeps this image without power
     board::powerOff();
     // if we get here the power-off failed
     sys.sdOk = board::sdInit();
-    ui::drawPowerOff(c, "Nie udało się wyłączyć", "spróbuj ponownie lub odłącz baterię");
+    ui::drawPowerOff(c, TR("Nie udało się wyłączyć", "Power off failed"), TR("spróbuj ponownie lub odłącz baterię", "try again or disconnect the battery"));
     board::displayUpdate(false);
     delay(3000);
 }
@@ -883,6 +1007,7 @@ void setup() {
     // SD first so config.ini (VCOM, flip) is known before the display starts
     sys.sdOk = board::sdInit();
     if (sys.sdOk) settings.load(PATH_CONFIG);
+    applyLanguage();
     usbdisk::init();  // USB drive registered without media (shown only in "Tryb USB")
 #if !ARDUINO_USB_MODE
     Serial.setTxTimeoutMs(0);  // never block on log output when no terminal reads the USB port
@@ -901,53 +1026,53 @@ void setup() {
         esp_reset_reason_t rr = esp_reset_reason();
         const char* why = nullptr;
         switch (rr) {
-            case ESP_RST_PANIC: why = "błąd programu (panic)"; break;
+            case ESP_RST_PANIC: why = TR("błąd programu (panic)", "software error (panic)"); break;
             case ESP_RST_INT_WDT:
             case ESP_RST_TASK_WDT:
-            case ESP_RST_WDT: why = "zawieszenie (watchdog)"; break;
-            case ESP_RST_BROWNOUT: why = "spadek napięcia (bateria?)"; break;
+            case ESP_RST_WDT: why = TR("zawieszenie (watchdog)", "hang (watchdog)"); break;
+            case ESP_RST_BROWNOUT: why = TR("spadek napięcia (bateria?)", "brownout (battery?)"); break;
             default: break;
         }
         if (why) {
-            boot.push_back(std::string("[!!] Poprzedni restart: ") + why);
+            boot.push_back(std::string(TR("[!!] Poprzedni restart: ", "[!!] Last restart: ")) + why);
             Serial.printf("[boot] reset reason %d\n", (int)rr);
             if (gCrumbMagic == kCrumbMagic) {
                 gCrumb[sizeof gCrumb - 1] = 0;
                 gCrashCrumb = gCrumb;
-                boot.push_back(std::string("[!!] Ostatnio: ") + gCrumb);
+                boot.push_back(std::string(TR("[!!] Ostatnio: ", "[!!] Last action: ")) + gCrumb);
                 Serial.printf("[boot] last action: %s\n", gCrumb);
             }
         }
         if (why) sys.lastCrash = std::string(why) + (gCrumbMagic == kCrumbMagic ? std::string(": ") + gCrumb : "");
         crumb("start");
     }
-    boot.push_back(std::string(sys.sdOk ? "[OK] " : "[!!] ") + "Karta SD" + (sys.sdOk ? "" : " – brak, dane i zapis lotu niedostępne"));
+    boot.push_back(std::string(sys.sdOk ? "[OK] " : "[!!] ") + TR("Karta SD", "SD card") + (sys.sdOk ? "" : TR(" – brak, dane i zapis lotu niedostępne", " – missing, no data and no flight log")));
     bootScreen(boot);
 
-    crumb("start: barometr");
+    crumb(TR("start: barometr", "start: barometer"));
     sys.baroOk = baro.begin(Wire);
     {
         char b[80];
-        if (sys.baroOk) snprintf(b, sizeof b, "[OK] Barometr na kablu MS5611 (adres 0x%02X)", baro.address());
-        else snprintf(b, sizeof b, "[--] Barometr na kablu: brak (użyję BlueFly albo GPS)");
+        if (sys.baroOk) snprintf(b, sizeof b, TR("[OK] Barometr na kablu MS5611 (adres 0x%02X)", "[OK] Wired barometer MS5611 (address 0x%02X)"), baro.address());
+        else snprintf(b, sizeof b, TR("[--] Barometr na kablu: brak (użyję BlueFly albo GPS)", "[--] Wired barometer: none (BlueFly or GPS will be used)"));
         boot.push_back(b);
     }
-    crumb("start: skan I2C");
+    crumb(TR("start: skan I2C", "start: I2C scan"));
     sys.i2cDevices = board::i2cScan();
     Serial.printf("[i2c] %s\n", sys.i2cDevices.c_str());
     boot.push_back("[..] I2C: " + sys.i2cDevices);
-    crumb("start: bateria");
+    crumb(TR("start: bateria", "start: battery"));
     board::Battery bt0 = board::batteryRead();
     {
         char b[96];
-        snprintf(b, sizeof b, "%s Bateria: %s %.2f V", batt && bt0.ok ? "[OK]" : "[!!]", bt0.source, bt0.volts);
+        snprintf(b, sizeof b, TR("%s Bateria: %s %.2f V", "%s Battery: %s %.2f V"), batt && bt0.ok ? "[OK]" : "[!!]", bt0.source, bt0.volts);
         boot.push_back(b);
     }
     if (sys.sdOk) {
-        crumb("start: wczytywanie danych z SD");
+        crumb(TR("start: wczytywanie danych z SD", "start: loading data from SD"));
         loadData();
         char b[96];
-        snprintf(b, sizeof b, "[OK] Strefy %d, punkty %d, trasa %d, teren %d, mapy %d", sys.airspaceZones,
+        snprintf(b, sizeof b, TR("[OK] Strefy %d, punkty %d, trasa %d, teren %d, mapy %d", "[OK] Airspace %d, waypoints %d, route %d, terrain %d, maps %d"), sys.airspaceZones,
                  sys.waypoints, sys.routePoints, sys.terrainTiles, sys.topoAreas);
         boot.push_back(b);
         sys.sdFreeMb = board::sdFreeMb();
@@ -955,9 +1080,9 @@ void setup() {
     if (!sys.lastCrash.empty()) {
         std::string rep = saveCrashReport();
         sys.loadErrors.insert(sys.loadErrors.begin(), "Restart: " + sys.lastCrash);
-        if (!rep.empty()) sys.loadErrors.insert(sys.loadErrors.begin() + 1, "Raport: " + rep);
+        if (!rep.empty()) sys.loadErrors.insert(sys.loadErrors.begin() + 1, TR("Raport: ", "Report: ") + rep);
     }
-    boot.push_back("[..] GPS – wykrywanie modułu");
+    boot.push_back(TR("[..] GPS – wykrywanie modułu", "[..] GPS – detecting module"));
     bootScreen(boot);
 
     crumb("start: GPS");
@@ -973,9 +1098,17 @@ void setup() {
     phone::setEnabled(settings.phoneEnabled);
     bluefly::begin(settings.blueflyEnabled);
     xTaskCreatePinnedToCore(sensorTask, "sensors", 8192, nullptr, 5, nullptr, 1);
+    // FANET: own 16-bit id, generated once and kept in config.ini
+    if (settings.fanetId <= 0 || settings.fanetId >= 0xFFFF) {
+        settings.fanetId = 1 + (int)(esp_random() % 0xFFFE);
+        saveSettings();
+    }
+    crumb("start: FANET");
+    fanet::begin();
+    applyFanetConfig();
     delay(500);
     render(true);
-    crumb("praca");
+    crumb(TR("praca", "running"));
 }
 
 void loop() {
@@ -985,6 +1118,12 @@ void loop() {
 
     board::Event e;
     while (board::inputGet(e)) dirty |= handleEvent(e);
+    {
+        fanet::Rx r;
+        FanetPacket p;
+        while (fanet::getRx(r))
+            if (fanetDecode(r.data, r.len, p)) traffic.onPacket(p, r.ms, r.rssi);
+    }
 
     bool newFix = false;
     GpsFix g;
@@ -1019,22 +1158,22 @@ void loop() {
     {
         nav::FileReceiver::Pending p;
         if (!usbMode && phone::takePending(p)) {
-            crumb("instalacja pliku z telefonu: " + p.kind);
+            crumb(TR("instalacja pliku z telefonu: ", "installing file from phone: ") + p.kind);
             if (p.kind == "reload") {
                 loadData();
                 phone::notify("OK RELOADED");
-                phone::setLastResult("usunięto " + p.name);
+                phone::setLastResult(TR("usunięto ", "deleted ") + p.name);
             } else {
                 std::string msg;
                 int count = 0;
                 bool ok = nav::FileReceiver::install(SD_MOUNT, p, msg, count);
                 if (ok) loadData();
-                static const char* what[] = {"airspace", "stref", "activations", "aktywacji", "waypoints", "punktów",
-                                             "route", "punktów trasy"};
+                const char* what[] = {"airspace", TR("stref", "airspaces"), "activations", TR("aktywacji", "activations"), "waypoints", TR("punktów", "waypoints"),
+                                             "route", TR("punktów trasy", "route points")};
                 const char* unit = "";
                 for (int i = 0; i < 8; i += 2)
                     if (p.kind == what[i]) unit = what[i + 1];
-                phone::setLastResult(ok ? std::to_string(count) + " " + unit + " – " + msg : "BŁĄD: " + msg);
+                phone::setLastResult(ok ? std::to_string(count) + " " + unit + " – " + msg : TR("BŁĄD: ", "ERROR: ") + msg);
                 phone::notify(ok ? "OK END " + std::to_string(count) + " " + msg : "ERR " + msg);
             }
             dirty = true;

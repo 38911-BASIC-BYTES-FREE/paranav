@@ -1,4 +1,5 @@
 #include "usb_disk.h"
+#include "i18n.h"
 
 #include <Arduino.h>
 #include <SD.h>
@@ -53,11 +54,11 @@ bool start() {
     if (!sInit) init();
     size_t n = SD.numSectors(), sz = SD.sectorSize();
     if (!n || sz != 512) {
-        sErr = "brak karty SD";
+        sErr = TR("brak karty SD", "no SD card");
         return false;
     }
     if (!msc.begin((uint32_t)n, (uint16_t)sz)) {
-        sErr = "USB: błąd startu";
+        sErr = TR("USB: błąd startu", "USB: start error");
         return false;
     }
     sEjected = false;
@@ -93,7 +94,7 @@ void stop() {}
 bool active() { return false; }
 bool hostConnected() { return false; }
 bool takeEjected() { return false; }
-const char* lastError() { return "niedostępne (USB Mode = hwcdc)"; }
+const char* lastError() { return TR("niedostępne (USB Mode = hwcdc)", "not available (USB Mode = hwcdc)"); }
 }  // namespace usbdisk
 
 #endif

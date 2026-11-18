@@ -1,4 +1,5 @@
 #include "screens.h"
+#include "../i18n.h"
 
 #include <algorithm>
 #include <cmath>
@@ -62,7 +63,7 @@ static std::string trunc(const std::string& s, const Font& f, int maxW) {
 }
 
 const char* screenName(ScreenId s) {
-    static const char* n[] = {"LOT", "MAPA", "TOPO", "NAWIGACJA", "TERMIKA", "STREFY", "PALIWO", "SYSTEM"};
+    const char* n[] = {TR("LOT", "FLIGHT"), TR("MAPA", "MAP"), "TOPO", TR("RUCH", "TRAFFIC"), TR("NAWIGACJA", "NAV"), TR("TERMIKA", "THERMAL"), TR("STREFY", "AIRSPACE"), TR("PALIWO", "FUEL"), "SYSTEM"};
     return (s >= 0 && s < SCR_COUNT) ? n[s] : "";
 }
 
@@ -126,6 +127,23 @@ void drawStatusBar(Canvas& c, ScreenId s, const UiContext& u, const char* title)
         c.text(x - w / 2, 30, "TEL", font_sb, BLACK, CENTER);
         x -= w + 8;
     }
+    if (u.traffic) {
+        // FANET: number of aircraft heard in the last minute; inverted on a caution/alarm
+        int cnt = 0, lvl = 0;
+        for (const auto& t : *u.traffic)
+            if (t.lastMs && t.ageS <= 60 && !t.ground) {
+                cnt++;
+                lvl = std::max(lvl, t.level);
+            }
+        if (cnt > 0) {
+            std::snprintf(b, sizeof b, "FN %d", cnt);
+            int w = Canvas::textWidth(b, font_sb) + 10;
+            if (lvl >= 2) c.fillRect(x - w, 4, w, 32, BLACK);
+            else c.rect(x - w, 4, w, 32, BLACK, 2);
+            c.text(x - w / 2, 30, b, font_sb, lvl >= 2 ? WHITE : BLACK, CENTER);
+            x -= w + 8;
+        }
+    }
     if (u.sys && u.sys->bfState == 3) {
         // BlueFly connected; inverted when it is the active altitude source
         bool act = n.altSource == nav::AltSource::BlueFly;
@@ -162,10 +180,10 @@ void drawStatusBar(Canvas& c, ScreenId s, const UiContext& u, const char* title)
     std::string ft = n.phase == nav::Phase::Flying ? "▲ " + fmtDur((float)n.flightTimeS) : "";
     int cw = Canvas::textWidth(clk.c_str(), font_sb), fw = ft.empty() ? 0 : Canvas::textWidth(ft.c_str(), font_sb) + 12;
     int cx = std::min(305, x - 12 - cw - fw);
-    bool dots = !title && cx >= 190 + SCR_COUNT * 13 + 4;  // page dots only when there is room
+    bool dots = !title && cx >= 190 + SCR_COUNT * 12 + 4;  // page dots only when there is room
     if (dots) {
         for (int i = 0; i < SCR_COUNT; i++) {
-            int dx = 190 + i * 13;
+            int dx = 190 + i * 12;
             if (i == s) c.fillCircle(dx, 20, 5, BLACK);
             else c.circle(dx, 20, 5, BLACK, 1);
         }
@@ -212,52 +230,52 @@ static void drawFlight(Canvas& c, const UiContext& u) {
                      : n.altSource == nav::AltSource::BlueFly ? "VARIO  BlueFly"
                                                               : "VARIO  m/s");
     c.text(262, 190, fmtSigned1(n.vario1s), std::fabs(n.vario1s) >= 9.95f ? font_l : font_xl, BLACK, RIGHT);
-    label(c, 80, 262, "średnio 30 s");
+    label(c, 80, 262, TR("średnio 30 s", "30 s average"));
     c.text(262, 330, fmtSigned1(n.varioAvg), font_l, BLACK, RIGHT);
 
     // altitude column
-    label(c, 282, 64, (std::string("WYSOKOŚĆ MSL") + srcSuffix(n.altSource)).c_str());
+    label(c, 282, 64, (std::string(TR("WYSOKOŚĆ MSL", "ALTITUDE MSL")) + srcSuffix(n.altSource)).c_str());
     valueUnit(c, 620, 170, fmtInt(n.altMsl), font_xl, "m");
-    label(c, 282, 212, "nad startem");
+    label(c, 282, 212, TR("nad startem", "above takeoff"));
     valueUnit(c, 440, 272, fmtInt(n.aglTakeoff), font_l, "m");
-    label(c, 460, 212, "nad terenem");
+    label(c, 460, 212, TR("nad terenem", "AGL"));
     valueUnit(c, 620, 272, fmtInt(n.aglTerrain), font_l, "m");
-    label(c, 282, 307, "PRĘDKOŚĆ GS");
+    label(c, 282, 307, TR("PRĘDKOŚĆ GS", "GND SPEED"));
     valueUnit(c, 440, 368, n.fix ? fmtInt(n.gsKmh) : "––", font_l, "km/h");
-    label(c, 460, 307, "KURS");
+    label(c, 460, 307, TR("KURS", "TRACK"));
     c.text(620, 368, n.fix ? fmtDeg(n.trackDeg) : "––", font_l, BLACK, RIGHT);
 
     // home
-    label(c, 642, 64, "START");
+    label(c, 642, 64, TR("START", "HOME"));
     if (n.homeSet && n.fix) {
         valueUnit(c, 830, 130, fmtDistKm(n.homeDistM), font_l, "km");
         float rel = (float)nav::wrap180(n.homeBrg - n.trackDeg);
         c.circle(895, 120, 52, BLACK, 2);
         c.arrow(895, 120, 90, rel, BLACK);
-        std::string ete = "czas " + fmtDur(n.homeEteS) + "   " + fmtDeg(n.homeBrg);
+        std::string ete = TR("czas ", "ETE ") + fmtDur(n.homeEteS) + "   " + fmtDeg(n.homeBrg);
         c.text(642, 210, ete, font_sb, BLACK);
     } else {
-        c.text(642, 130, "brak", font_m, BLACK);
+        c.text(642, 130, TR("brak", "none"), font_m, BLACK);
     }
 
     // wind
-    label(c, 642, 254, "WIATR");
+    label(c, 642, 254, TR("WIATR", "WIND"));
     if (n.wind.valid) {
         valueUnit(c, 830, 320, fmtInt(n.wind.speedKmh), font_l, "km/h");
         // arrow shows where the wind blows TO, relative to track (up = our track)
         float rel = (float)nav::wrap180(n.wind.fromDeg + 180.f - n.trackDeg);
         c.circle(895, 310, 52, BLACK, 2);
         c.arrow(895, 310, 86, rel, BLACK, true);
-        std::string fr = "z " + fmtDeg(n.wind.fromDeg);
+        std::string fr = TR("z ", "from ") + fmtDeg(n.wind.fromDeg);
         if (n.wind.ageS > 300) fr += "  (" + std::to_string(n.wind.ageS / 60) + " min)";
         c.text(642, 368, fr, font_sb, BLACK);
     } else {
-        c.text(642, 312, "brak danych", font_m, BLACK);
-        c.text(642, 360, "wykonaj zakręt 360°", font_s, BLACK);
+        c.text(642, 312, TR("brak danych", "no data"), font_m, BLACK);
+        c.text(642, 360, TR("wykonaj zakręt 360°", "fly a 360° turn"), font_s, BLACK);
     }
 
     // fuel
-    label(c, 10, 404, n.engineOn ? "PALIWO – zapas czasu" : "PALIWO – SILNIK WYŁ.");
+    label(c, 10, 404, n.engineOn ? TR("PALIWO – zapas czasu", "FUEL – endurance") : TR("PALIWO – SILNIK WYŁ.", "FUEL – ENGINE OFF"));
     valueUnit(c, 250, 470, fmtDur(n.enduranceMin * 60.f), font_l, "h");
     char b[64];
     std::snprintf(b, sizeof b, "%.1f l", (double)n.fuelLeftL);
@@ -265,15 +283,15 @@ static void drawFlight(Canvas& c, const UiContext& u) {
     if (n.homeSet) {
         if (n.returnMarginMin < 0) {
             c.fillRect(6, 488, 468, 46, BLACK);
-            c.text(240, 524, "WRACAJ – brak paliwa na powrót", font_sb, WHITE, CENTER);
+            c.text(240, 524, TR("WRACAJ – brak paliwa na powrót", "TURN BACK – not enough fuel"), font_sb, WHITE, CENTER);
         } else {
-            std::snprintf(b, sizeof b, "powrót: OK  zapas +%s", fmtDur(n.returnMarginMin * 60.f).c_str());
+            std::snprintf(b, sizeof b, TR("powrót: OK  zapas +%s", "return: OK  margin +%s"), fmtDur(n.returnMarginMin * 60.f).c_str());
             c.text(10, 522, b, font_sb, BLACK);
         }
     }
 
     // glide
-    label(c, 492, 404, "DOSKONAŁOŚĆ L/D");
+    label(c, 492, 404, TR("DOSKONAŁOŚĆ L/D", "GLIDE RATIO L/D"));
     int ldw;
     if (!std::isnan(n.ldCurrent)) {
         std::snprintf(b, sizeof b, "%.1f", (double)n.ldCurrent);
@@ -281,21 +299,222 @@ static void drawFlight(Canvas& c, const UiContext& u) {
     } else {
         ldw = c.text(492, 470, "––", font_l, BLACK);
     }
-    std::snprintf(b, sizeof b, "biegun. %.1f", (double)u.set->glideRatio);
+    std::snprintf(b, sizeof b, TR("biegun. %.1f", "polar %.1f"), (double)u.set->glideRatio);
     c.text(492 + ldw + 12, 470, b, font_s, BLACK);
-    label(c, 950, 432, "dolot do startu", RIGHT);
+    label(c, 950, 432, TR("dolot do startu", "arrival at home"), RIGHT);
     if (n.homeSet && !std::isnan(n.homeArrivalAgl)) {
         std::snprintf(b, sizeof b, "%+d m", (int)std::lround(n.homeArrivalAgl - u.set->glideMarginM));
         c.text(950, 474, b, font_m, BLACK, RIGHT);
     }
     if (n.homeSet) {
         if (n.homeReachable) {
-            c.text(492, 522, "✓ DOLECISZ DO STARTU BEZ SILNIKA", font_sb, BLACK);
+            c.text(492, 522, TR("✓ DOLECISZ DO STARTU BEZ SILNIKA", "✓ HOME WITHIN GLIDE, ENGINE OFF"), font_sb, BLACK);
         } else {
             c.fillRect(486, 488, 468, 46, BLACK);
-            c.text(720, 524, "START POZA ZASIĘGIEM ŚLIZGU", font_sb, WHITE, CENTER);
+            c.text(720, 524, TR("START POZA ZASIĘGIEM ŚLIZGU", "HOME OUT OF GLIDE RANGE"), font_sb, WHITE, CENTER);
         }
     }
+}
+
+// ------------------------------------------------------------------ FANET traffic (shared)
+// entries worth showing: have a position, heard within the last 60 s
+static std::vector<const nav::Traffic*> shownTraffic(const UiContext& u, size_t maxN = 40) {
+    std::vector<const nav::Traffic*> v;
+    if (!u.traffic) return v;
+    for (const auto& t : *u.traffic) {
+        if (!t.lastMs || t.ageS > 60) continue;
+        v.push_back(&t);
+        if (v.size() >= maxN) break;
+    }
+    return v;
+}
+
+static std::string trafficName(const nav::Traffic& t) {
+    return t.name.empty() ? "ID " + nav::fanetAddrStr(t.addr) : t.name;
+}
+
+static std::string fmtDz(float dz) {
+    char b[16];
+    dz = std::max(-9999.f, std::min(9999.f, dz));
+    std::snprintf(b, sizeof b, "%+d", (int)std::lround(dz));
+    return b;
+}
+
+// Other aircraft on a map. to(): lat/lon -> screen, rotDeg: map rotation (track-up), clip: map area.
+template <class ToScreen>
+static void drawTrafficOnMap(Canvas& c, const UiContext& u, ToScreen to, float rotDeg, int x0, int y0, int x1,
+                             int y1) {
+    auto list = shownTraffic(u);
+    std::vector<DebugBox> used;  // label boxes (labels that would overlap are left out)
+    // draw the most important last (on top)
+    for (auto it = list.rbegin(); it != list.rend(); ++it) {
+        const nav::Traffic& t = **it;
+        Pt p = to(t.lat, t.lon);
+        if (p.x < x0 - 10 || p.x > x1 + 10 || p.y < y0 - 10 || p.y > y1 + 10) continue;
+        if (t.ground) {
+            c.fillCircle(p.x, p.y, 10, WHITE);
+            c.circle(p.x, p.y, 8, BLACK, 2);
+            c.fillRect(p.x - 2, p.y - 2, 5, 5, BLACK);
+            continue;
+        }
+        c.fillCircle(p.x, p.y, 19, WHITE);
+        c.arrow(p.x, p.y, 32, t.headingDeg - rotDeg, BLACK, t.stale());
+        if (t.level >= 2) c.circle(p.x, p.y, 26, BLACK, t.level >= 3 ? 5 : 3);
+        // height difference (+ above us) and climb arrow; name when close or threatening
+        std::string l = fmtDz(t.dzM) + (t.climbMs > 0.5f ? "↑" : t.climbMs < -0.5f ? "↓" : "");
+        bool named = t.level >= 2 || t.distM < 2000;
+        std::string nm = named ? trafficName(t).substr(0, 10) : "";
+        int lw = std::max(Canvas::textWidth(l.c_str(), font_s), nm.empty() ? 0 : Canvas::textWidth(nm.c_str(), font_s));
+        int lx = p.x + 24 + lw > x1 ? p.x - 24 - lw : p.x + 24;
+        int ly1 = p.y + (nm.empty() ? 4 : 28);
+        bool clash = false;
+        for (auto& b : used)
+            if (!(lx + lw < b.x0 || lx > b.x1 || ly1 < b.y0 || p.y - 20 > b.y1)) clash = true;
+        if (clash && t.level < 2) continue;
+        used.push_back({lx, p.y - 20, lx + lw, ly1, ""});
+        c.fillRect(lx - 2, p.y - 20, lw + 4, nm.empty() ? 24 : 48, WHITE);
+        c.text(lx, p.y, l, font_s, BLACK);
+        if (!nm.empty()) c.text(lx, p.y + 24, nm, font_s, BLACK);
+    }
+}
+
+// RUCH screen: list on the left, radar (track up) on the right
+static const int kTrRowY = 92, kTrRowH = 58, kTrRows = 7, kTrListW = 580;
+
+int trafficRowAt(const UiContext& u, int x, int y) {
+    if (x < 120 || x >= kTrListW || y < kTrRowY) return -1;
+    int r = (y - kTrRowY) / kTrRowH;
+    auto list = shownTraffic(u, kTrRows);
+    if (r < 0 || r >= (int)list.size()) return -1;
+    // index into u.traffic
+    return (int)(list[r] - u.traffic->data());
+}
+
+static void drawTraffic(Canvas& c, const UiContext& u) {
+    const NavState& n = *u.nav;
+    const SysInfo* s = u.sys;
+    auto list = shownTraffic(u);
+    float trk = n.fix ? n.trackDeg : 0.f;
+    // ---- list
+    c.vline(kTrListW, 40, 470, BLACK);
+    c.vline(kTrListW + 1, 40, 470, BLACK);
+    label(c, 10, 74, "PILOT");
+    label(c, 300, 74, TR("ODL.", "DIST"), RIGHT);
+    label(c, 345, 74, TR("KIER.", "BRG"), CENTER);
+    label(c, 476, 74, TR("WYS.", "ALT"), RIGHT);
+    label(c, 572, 74, "m/s", RIGHT);
+    c.hline(0, kTrRowY - 4, kTrListW, BLACK);
+    if (list.empty()) {
+        c.text(20, 160, TR("Brak innych pilotów", "No other pilots"), font_m, BLACK);
+        c.text(20, 196, TR("w zasięgu FANET", "in FANET range"), font_m, BLACK);
+        c.text(20, 250, TR("Widać tylko urządzenia FANET", "Only FANET devices are shown"), font_s, BLACK);
+        c.text(20, 278, "(Skytraxx, XC Tracer, Naviter, Burnair…).", font_s, BLACK);
+        c.text(20, 306, TR("Samoloty i szybowce z samym FLARM", "Aircraft and gliders with FLARM only"), font_s, BLACK);
+        c.text(20, 334, TR("nie są widoczne.", "are not visible."), font_s, BLACK);
+    }
+    for (int i = 0; i < (int)list.size() && i < kTrRows; i++) {
+        const nav::Traffic& t = *list[i];
+        int y = kTrRowY + i * kTrRowH;
+        bool inv = t.level >= 2;
+        uint8_t fg = inv ? WHITE : BLACK;
+        if (inv) c.fillRect(0, y, kTrListW, kTrRowH - 2, BLACK);
+        c.text(10, y + 27, trunc(trafficName(t), font_sb, 200), font_sb, fg);
+        const char* types[] = {TR("inny", "other"), TR("paralotnia", "paraglider"), TR("lotnia", "hang glider"), TR("balon", "balloon"), TR("szybowiec", "glider"), TR("samolot", "aircraft"), TR("śmigłowiec", "helicopter"), TR("dron", "drone")};
+        char b[48];
+        if (t.ground) std::snprintf(b, sizeof b, "%s", TR("na ziemi", "on ground"));
+        else std::snprintf(b, sizeof b, "%s", types[t.aircraft & 7]);
+        std::string sub = b;
+        if (t.ageS >= 10) sub += "  " + std::to_string((int)t.ageS) + " s";
+        c.text(10, y + 51, trunc(sub, font_s, 200), font_s, fg);
+        c.text(300, y + 40, fmtDistKm(t.distM), font_m, fg, RIGHT);
+        // direction relative to our track (up = ahead)
+        if (inv) c.fillCircle(345, y + 28, 22, WHITE);
+        c.arrow(345, y + 28, 40, (float)nav::wrap180(t.brgDeg - trk), BLACK);
+        if (!t.ground) {
+            c.text(476, y + 40, fmtDz(t.dzM), font_m, fg, RIGHT);
+            c.text(572, y + 40, fmtSigned1(t.climbMs), font_s, fg, RIGHT);
+        }
+        c.hline(0, y + kTrRowH - 2, kTrListW, BLACK);
+    }
+    // status line
+    {
+        std::string st;
+        if (!s || s->fanetState == 0) st = TR("FANET wyłączony (Menu > FANET)", "FANET off (Menu > FANET)");
+        else if (s->fanetState == 3) st = "FANET: " + (s->fanetErr.empty() ? std::string(TR("błąd radia", "radio error")) : s->fanetErr);
+        else {
+            st = s->fanetState == 2 ? TR("nadaję", "transmitting") : TR("tylko odbiór", "receive only");
+            st += "  ·  ID " + s->fanetId + "  ·  online " + std::string(s->fanetOnline ? TR("TAK", "YES") : TR("NIE", "NO"));
+        }
+        c.fillRect(0, 512, kTrListW, 28, WHITE);
+        c.hline(0, 510, kTrListW, BLACK);
+        c.text(10, 534, trunc(st, font_s, kTrListW - 20), font_s, BLACK);
+    }
+    // ---- radar
+    const int cx = 770, cy = 300, R = 190;
+    static const float ranges[] = {1000, 2000, 5000, 10000, 20000};
+    float far = 0;
+    for (size_t i = 0; i < list.size() && i < 5; i++) far = std::max(far, list[i]->distM);
+    float range = ranges[4];
+    for (float r : ranges)
+        if (far <= r * 0.95f) { range = r; break; }
+    c.circle(cx, cy, R, BLACK, 2);
+    c.circle(cx, cy, R / 2, BLACK, 1, 6);
+    char rb[24];
+    std::snprintf(rb, sizeof rb, "%g km", (double)range / 1000);
+    c.text(W - 8, 72, rb, font_sb, BLACK, RIGHT);
+    c.text(W - 8, 532, TR("KURS↑", "TRK↑"), font_s, BLACK, RIGHT);
+    // own aircraft: triangle pointing up
+    Pt me[3] = {{cx, cy - 16}, {cx - 11, cy + 12}, {cx + 11, cy + 12}};
+    c.fillPolygon(me, 3, BLACK);
+    std::vector<DebugBox> used;  // label boxes already drawn (skip overlapping labels)
+    auto freeBox = [&](int x0, int y0, int x1, int y1) {
+        for (auto& b : used)
+            if (!(x1 < b.x0 || x0 > b.x1 || y1 < b.y0 || y0 > b.y1)) return false;
+        used.push_back({x0, y0, x1, y1, ""});
+        return true;
+    };
+    for (auto it = list.begin(); it != list.end(); ++it) {  // most important first: it keeps its label
+        const nav::Traffic& t = **it;
+        float d = std::min(t.distM / range, 1.0f) * R;
+        float a = (float)((t.brgDeg - trk) * nav::kDeg2Rad);
+        int x = cx + (int)std::lround(std::sin(a) * d), y = cy - (int)std::lround(std::cos(a) * d);
+        if (t.ground) {
+            c.circle(x, y, 7, BLACK, 2);
+            continue;
+        }
+        c.fillCircle(x, y, 15, WHITE);
+        c.arrow(x, y, 26, t.headingDeg - trk, BLACK, t.stale());
+        if (t.level >= 2) c.circle(x, y, 21, BLACK, t.level >= 3 ? 5 : 3);
+        std::string l = fmtDz(t.dzM);
+        int tw = Canvas::textWidth(l.c_str(), font_s);
+        int lx = x + 18 + tw > W - 4 ? x - 18 - tw : x + 18;
+        if (!freeBox(lx - 2, y - 2, lx + tw + 2, y + 22)) continue;
+        c.fillRect(lx - 2, y - 2, tw + 4, 24, WHITE);
+        c.text(lx, y + 18, l, font_s, BLACK);
+    }
+}
+
+// Over other screens: the most threatening aircraft at "caution" level (alarm level uses the
+// full-width alert banner). Black frame, top right, under the status bar.
+void drawTrafficHint(Canvas& c, const UiContext& u) {
+    auto list = shownTraffic(u, 1);
+    if (list.empty() || list[0]->level < 2) return;
+    const nav::Traffic& t = *list[0];
+    const NavState& n = *u.nav;
+    const int x = W - 330, y = 44, w = 326, h = 118;
+    c.fillRect(x, y, w, h, BLACK);
+    c.fillRect(x + 5, y + 5, w - 10, h - 10, WHITE);
+    float rel = (float)nav::wrap180(t.brgDeg - (n.fix ? n.trackDeg : 0.f));
+    c.circle(x + 56, y + 59, 44, BLACK, 2);
+    c.arrow(x + 56, y + 59, 72, rel, BLACK);
+    char b[48];
+    std::snprintf(b, sizeof b, TR("RUCH  godz. %d", "TFC  %d o'clock"), nav::clockPosition(rel));
+    c.text(x + 110, y + 34, b, font_sb, BLACK);
+    std::string d;
+    if (t.distM < 1000) d = std::to_string((int)std::lround(t.distM)) + " m  " + fmtDz(t.dzM) + " m";
+    else d = fmtDistKm(t.distM) + " km  " + fmtDz(t.dzM) + " m";
+    c.text(x + 110, y + 72, d, font_sb, BLACK);
+    c.text(x + 110, y + 104, trunc(trafficName(t), font_s, w - 120), font_s, BLACK);
 }
 
 // ------------------------------------------------------------------ MAP
@@ -350,7 +569,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
     v.rotDeg = u.set->mapNorthUp ? 0.f : n.trackDeg;
     double lat = n.fix ? n.lat : n.homeLat, lon = n.fix ? n.lon : n.homeLon;
     if (!n.fix && !n.homeSet) {
-        c.text(MW / 2, 290, "Czekam na GPS…", font_m, BLACK, CENTER);
+        c.text(MW / 2, 290, TR("Czekam na GPS…", "Waiting for GPS…"), font_m, BLACK, CENTER);
     } else {
         v.pr.init(lat, lon);
         float viewR = std::hypot((float)MW, (float)MH) * v.mpp;
@@ -446,6 +665,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
             c.line(v.cx, v.cy, t.x, t.y, BLACK, 2, 10);
             if (n.tgtKind != nav::TargetKind::Home) c.fillCircle(t.x, t.y, 6, BLACK);
         }
+        drawTrafficOnMap(c, u, [&](double la, double lo) { return v.toScreen(la, lo); }, v.rotDeg, 0, MY, MW, MY + MH);
         // own position
         if (n.fix) {
             float a = u.set->mapNorthUp ? n.trackDeg : 0.f;
@@ -487,13 +707,13 @@ static void drawMap(Canvas& c, const UiContext& u) {
         else std::snprintf(b, sizeof b, km < 10 ? "%.1f km" : "%.0f km", (double)km);
         c.text(20 + px, y + 4, b, font_s, BLACK);
     }
-    c.text(MW - 10, MY + MH - 10, u.set->mapNorthUp ? "N↑" : "KURS↑", font_s, BLACK, RIGHT);
+    c.text(MW - 10, MY + MH - 10, u.set->mapNorthUp ? "N↑" : TR("KURS↑", "TRK↑"), font_s, BLACK, RIGHT);
 
     // side panel
     const int SX = MW + 2;
     c.fillRect(MW, MY, W - MW, MH, WHITE);
     c.vline(MW, MY, MH, BLACK); c.vline(MW + 1, MY, MH, BLACK);
-    label(c, SX + 10, MY + 24, "WYS. MSL");
+    label(c, SX + 10, MY + 24, TR("WYS. MSL", "ALT MSL"));
     valueUnit(c, W - 10, MY + 74, fmtInt(n.altMsl), font_l, "m");
     label(c, SX + 10, MY + 104, "VARIO");
     valueUnit(c, W - 10, MY + 152, fmtSigned1(n.vario1s), font_l, "m/s");
@@ -501,7 +721,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
     valueUnit(c, W - 10, MY + 222, n.fix ? fmtInt(n.gsKmh) : "––", font_m, "km/h");
     c.hline(MW, MY + 236, W - MW, BLACK);
     c.hline(MW, MY + 237, W - MW, BLACK);
-    label(c, SX + 10, MY + 262, "NAJBLIŻSZA STREFA");
+    label(c, SX + 10, MY + 262, TR("NAJBLIŻSZA STREFA", "NEAREST AIRSPACE"));
     if (u.hits && !u.hits->empty() && u.asp && u.hits->front().idx >= 0 &&
         u.hits->front().idx < (int)u.asp->zones().size()) {
         const nav::AirspaceHit& h = u.hits->front();
@@ -512,9 +732,9 @@ static void drawMap(Canvas& c, const UiContext& u) {
         char b[48];
         if (h.insideH && h.vpos == nav::VertPos::Inside) {
             c.fillRect(SX + 4, MY + 336, W - SX - 10, 52, BLACK);
-            c.text((SX + W) / 2, MY + 372, "W STREFIE!", font_m, WHITE, CENTER);
+            c.text((SX + W) / 2, MY + 372, TR("W STREFIE!", "INSIDE!"), font_m, WHITE, CENTER);
         } else if (h.insideH) {
-            c.text(SX + 10, MY + 364, h.vpos == nav::VertPos::Below ? "pod strefą" : "nad strefą", font_sb, BLACK);
+            c.text(SX + 10, MY + 364, h.vpos == nav::VertPos::Below ? TR("pod strefą", "below") : TR("nad strefą", "above"), font_sb, BLACK);
             std::snprintf(b, sizeof b, "%d", (int)h.vertMarginM);
             valueUnit(c, W - 10, MY + 380, b, font_l, "m");
         } else {
@@ -523,17 +743,17 @@ static void drawMap(Canvas& c, const UiContext& u) {
             c.arrow(W - 34, MY + 362, 44, rel, BLACK);
         }
         if (h.timeToEntryS >= 0) {
-            std::snprintf(b, sizeof b, "wlot za %s", fmtDur(h.timeToEntryS, false).c_str());
+            std::snprintf(b, sizeof b, TR("wlot za %s", "entry in %s"), fmtDur(h.timeToEntryS, false).c_str());
             c.text(SX + 10, MY + 420, b, font_sb, BLACK);
         }
         c.text(SX + 10, MY + 448, activationLabel(u.asp->activationNow(a, n.utcSec, n.dateYmd)), font_s, BLACK);
     } else {
         bool none = u.asp && u.asp->zones().empty();
-        c.text(SX + 10, MY + 300, none ? "brak danych stref" : "brak stref", font_sb, BLACK);
-        c.text(SX + 10, MY + 328, none ? "(karta SD /airspace)" : "w promieniu 20 km", font_s, BLACK);
+        c.text(SX + 10, MY + 300, none ? TR("brak danych stref", "no airspace data") : TR("brak stref", "no airspace"), font_sb, BLACK);
+        c.text(SX + 10, MY + 328, none ? TR("(karta SD /airspace)", "(SD card /airspace)") : TR("w promieniu 20 km", "within 20 km"), font_s, BLACK);
     }
     char b[24];
-    std::snprintf(b, sizeof b, "skala %g km", (double)rangeKm);
+    std::snprintf(b, sizeof b, TR("skala %g km", "scale %g km"), (double)rangeKm);
     c.text(W - 10, MY + MH - 10, b, font_s, BLACK, RIGHT);
 }
 
@@ -612,7 +832,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     }
     const char* note = nullptr;
     if (!havePos) {
-        c.text(W / 2, 290, "Czekam na GPS…", font_m, BLACK, CENTER);
+        c.text(W / 2, 290, TR("Czekam na GPS…", "Waiting for GPS…"), font_m, BLACK, CENTER);
         v.valid = false;
         return;
     }
@@ -650,9 +870,9 @@ static void drawTopo(Canvas& c, const UiContext& u) {
                     if (st == nav::TopoTile::Error) bad++;
                 }
             }
-        if (bad) note = "błąd odczytu mapy";
+        if (bad) note = TR("błąd odczytu mapy", "map read error");
     } else {
-        note = (u.topo && !u.topo->areas().empty()) ? "brak mapy dla tej okolicy" : "brak map (karta SD /maps)";
+        note = (u.topo && !u.topo->areas().empty()) ? TR("brak mapy dla tej okolicy", "no map for this area") : TR("brak map (karta SD /maps)", "no maps (SD card /maps)");
     }
 
     // airspace outlines only (details: STREFY screen + alerts)
@@ -715,6 +935,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
             c.fillCircle(t.x, t.y, 7, BLACK);
         }
     }
+    drawTrafficOnMap(c, u, [&](double la, double lo) { return pr.to(la, lo); }, 0.f, 0, TY, W, TY + TH);
     if (n.fix) {
         c.fillCircle(me.x, me.y, 26, WHITE);
         c.circle(me.x, me.y, 26, BLACK, 1);
@@ -727,7 +948,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     // corner boxes
     // top-left: altitude
     topoBox(c, 0, TY);
-    label(c, 8, TY + 36, "WYS");
+    label(c, 8, TY + 36, TR("WYS", "ALT"));
     valueUnit(c, BOXW - 8, TY + 40, fmtInt(n.altMsl), font_m, "m");
     label(c, 8, TY + 80, "AGL");
     valueUnit(c, BOXW - 8, TY + 84, fmtInt(std::isnan(n.aglTerrain) ? n.aglTakeoff : n.aglTerrain), font_m, "m");
@@ -735,7 +956,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     topoBox(c, W - BOXW, TY);
     label(c, W - BOXW + 8, TY + 36, "GS");
     valueUnit(c, W - 8, TY + 40, n.fix ? fmtInt(n.gsKmh) : "––", font_m, "km/h");
-    label(c, W - BOXW + 8, TY + 80, "KURS");
+    label(c, W - BOXW + 8, TY + 80, TR("KURS", "TRACK"));
     c.text(W - 8, TY + 84, n.fix ? fmtDeg(n.trackDeg) : "––", font_m, BLACK, RIGHT);
     // bottom-left: vario + wind
     const int BY = TY + TH - BOXH;
@@ -747,7 +968,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
         c.arrow(30, BY + 68, 36, n.wind.fromDeg + 180.f, BLACK, true);
         valueUnit(c, BOXW - 8, BY + 84, fmtInt(n.wind.speedKmh), font_m, "km/h");
     } else {
-        label(c, 8, BY + 80, "WIATR");
+        label(c, 8, BY + 80, TR("WIATR", "WIND"));
         c.text(BOXW - 8, BY + 84, "––", font_m, BLACK, RIGHT);
     }
     // bottom-right: nearest airspace
@@ -759,18 +980,18 @@ static void drawTopo(Canvas& c, const UiContext& u) {
         c.text(W - BOXW + 8, BY + 30, trunc(a.name, font_s, BOXW - 16), font_s, BLACK);
         if (h.insideH && h.vpos == nav::VertPos::Inside) {
             c.fillRect(W - BOXW + 4, BY + 42, BOXW - 8, 46, BLACK);
-            c.text(W - BOXW / 2, BY + 78, "W STREFIE!", font_sb, WHITE, CENTER);
+            c.text(W - BOXW / 2, BY + 78, TR("W STREFIE!", "INSIDE!"), font_sb, WHITE, CENTER);
         } else if (h.insideH) {
             char b[32];
-            std::snprintf(b, sizeof b, "%s %d m", h.vpos == nav::VertPos::Below ? "pod" : "nad", (int)h.vertMarginM);
+            std::snprintf(b, sizeof b, "%s %d m", h.vpos == nav::VertPos::Below ? TR("pod", "below") : TR("nad", "above"), (int)h.vertMarginM);
             c.text(W - 8, BY + 80, b, font_sb, BLACK, RIGHT);
         } else {
             c.arrow(W - BOXW + 28, BY + 64, 34, h.bearingDeg, BLACK);
             valueUnit(c, W - 8, BY + 82, fmtDistKm(h.distM), font_m, "km");
         }
     } else {
-        label(c, W - BOXW + 8, BY + 36, "STREFY");
-        c.text(W - BOXW + 8, BY + 76, (u.asp && u.asp->zones().empty()) ? "brak danych" : "brak w pobliżu", font_sb, BLACK);
+        label(c, W - BOXW + 8, BY + 36, TR("STREFY", "AIRSPACE"));
+        c.text(W - BOXW + 8, BY + 76, (u.asp && u.asp->zones().empty()) ? TR("brak danych", "no data") : TR("brak w pobliżu", "none nearby"), font_sb, BLACK);
     }
 
     // scale bar + zoom level, bottom centre
@@ -805,21 +1026,21 @@ static void drawTopo(Canvas& c, const UiContext& u) {
 // USB mass-storage mode: SD card is a drive on the PC
 void drawUsbDisk(Canvas& c, const UiContext& u, bool host) {
     c.clear(WHITE);
-    drawStatusBar(c, SCR_SYSTEM, u, "TRYB USB");
-    c.text(W / 2, 130, "Karta SD jako dysk USB", font_m, BLACK, CENTER);
-    c.text(W / 2, 190, host ? "Komputer połączony – kopiuj pliki" : "Podłącz kabel USB-C do komputera", font_sb, BLACK,
+    drawStatusBar(c, SCR_SYSTEM, u, TR("TRYB USB", "USB MODE"));
+    c.text(W / 2, 130, TR("Karta SD jako dysk USB", "SD card as a USB drive"), font_m, BLACK, CENTER);
+    c.text(W / 2, 190, host ? TR("Komputer połączony – kopiuj pliki", "Computer connected – copy the files") : TR("Podłącz kabel USB-C do komputera", "Connect a USB-C cable to a computer"), font_sb, BLACK,
            CENTER);
-    static const char* lines[] = {"mapy podkładowe:  maps/<obszar>/…",
-                                  "strefy: airspace/    punkty: waypoints/",
-                                  "trasa: route/    teren: terrain/",
-                                  "Po skopiowaniu: wysuń (odmontuj) dysk w PC,",
-                                  "potem przytrzymaj KEY – powrót i wczytanie danych."};
+    const char* lines[] = {TR("mapy podkładowe:  maps/<obszar>/…", "base maps:  maps/<area>/…"),
+                                  TR("strefy: airspace/    punkty: waypoints/", "airspace: airspace/    waypoints: waypoints/"),
+                                  TR("trasa: route/    teren: terrain/", "route: route/    terrain: terrain/"),
+                                  TR("Po skopiowaniu: wysuń (odmontuj) dysk w PC,", "When done: eject the drive on the computer,"),
+                                  TR("potem przytrzymaj KEY – powrót i wczytanie danych.", "or hold KEY – back to normal, data reloaded.")};
     int y = 260;
     for (const char* l : lines) {
         c.text(80, y, l, font_sb, BLACK);
         y += 40;
     }
-    c.text(W / 2, 520, "Zapis lotu wstrzymany – nie używaj tego trybu w locie", font_s, BLACK, CENTER);
+    c.text(W / 2, 520, TR("Zapis lotu wstrzymany – nie używaj tego trybu w locie", "Flight log closed – do not use this mode in flight"), font_s, BLACK, CENTER);
 }
 
 // ------------------------------------------------------------------ NAV
@@ -848,11 +1069,11 @@ static void drawNav(Canvas& c, const UiContext& u) {
         float rel = (float)nav::wrap180(n.tgtBrg - n.trackDeg);
         c.arrow(cx, cy, 300, rel, BLACK);
         char b[24];
-        if (std::fabs(rel) < 5) std::snprintf(b, sizeof b, "▲ na kursie");
+        if (std::fabs(rel) < 5) std::snprintf(b, sizeof b, "%s", TR("▲ na kursie", "▲ on course"));
         else std::snprintf(b, sizeof b, rel < 0 ? "◄ %d°" : "%d° ►", (int)std::fabs(rel));
         c.text(12, 530, b, font_m, BLACK);
     } else {
-        c.text(cx, cy + 10, n.fix ? "brak celu" : "brak GPS", font_m, BLACK, CENTER);
+        c.text(cx, cy + 10, n.fix ? TR("brak celu", "no target") : TR("brak GPS", "no GPS"), font_m, BLACK, CENTER);
     }
 
     // right panel
@@ -861,17 +1082,18 @@ static void drawNav(Canvas& c, const UiContext& u) {
     const char* kind = "";
     char kb[32];
     switch (n.tgtKind) {
-        case nav::TargetKind::Home: kind = "CEL: START (Go Home)"; break;
-        case nav::TargetKind::Waypoint: kind = "CEL: PUNKT"; break;
-        case nav::TargetKind::Landing: kind = "CEL: NAJBLIŻSZE LĄDOWISKO"; break;
+        case nav::TargetKind::Home: kind = TR("CEL: START (Go Home)", "TARGET: HOME (Go Home)"); break;
+        case nav::TargetKind::Waypoint: kind = TR("CEL: PUNKT", "TARGET: WAYPOINT"); break;
+        case nav::TargetKind::Landing: kind = TR("CEL: NAJBLIŻSZE LĄDOWISKO", "TARGET: NEAREST LANDING"); break;
+        case nav::TargetKind::Point: kind = TR("CEL: PILOT (FANET)", "TARGET: PILOT (FANET)"); break;
         case nav::TargetKind::Route:
-            std::snprintf(kb, sizeof kb, "TRASA: punkt %d / %d", n.routeIdx + 1, n.routeLen);
+            std::snprintf(kb, sizeof kb, TR("TRASA: punkt %d / %d", "ROUTE: point %d / %d"), n.routeIdx + 1, n.routeLen);
             kind = kb;
             break;
     }
     label(c, X, 66, kind);
     c.text(X, 106, trunc(n.tgtValid ? n.tgtName : "––", font_m, W - X - 10), font_m, BLACK);
-    label(c, X, 140, "ODLEGŁOŚĆ");
+    label(c, X, 140, TR("ODLEGŁOŚĆ", "DISTANCE"));
     valueUnit(c, W - 10, 216, n.tgtValid ? fmtDistKm(n.tgtDistM) : "––", font_xl, "km");
     c.hline(X, 232, W - X, BLACK);
     // 2x3 grid
@@ -880,18 +1102,18 @@ static void drawNav(Canvas& c, const UiContext& u) {
         label(c, x, y + 22, l);
         c.text(x, y + 66, v, font_m, BLACK);
     };
-    cell(0, 0, "KIERUNEK", n.tgtValid ? fmtDeg(n.tgtBrg) : "––");
-    cell(1, 0, "CZAS DOLOTU", fmtDur(n.tgtEteS));
-    cell(0, 1, "PRZYLOT (lokal.)",
+    cell(0, 0, TR("KIERUNEK", "BEARING"), n.tgtValid ? fmtDeg(n.tgtBrg) : "––");
+    cell(1, 0, TR("CZAS DOLOTU", "ETE"), fmtDur(n.tgtEteS));
+    cell(0, 1, TR("PRZYLOT (lokal.)", "ETA (local)"),
          (n.tgtEteS >= 0 && n.timeValid) ? fmtClock(localSec(u) + (uint32_t)n.tgtEteS) : "––");
     char b[32];
     std::snprintf(b, sizeof b, "%.1f l", (double)n.tgtFuelArriveL);
-    cell(1, 1, "PALIWO U CELU", std::isnan(n.tgtFuelArriveL) ? "––" : b);
+    cell(1, 1, TR("PALIWO U CELU", "FUEL AT TARGET"), std::isnan(n.tgtFuelArriveL) ? "––" : b);
     std::snprintf(b, sizeof b, "%.1f", (double)n.tgtReqLD);
-    cell(0, 2, "WYMAGANA L/D", std::isnan(n.tgtReqLD) ? "––" : b);
+    cell(0, 2, TR("WYMAGANA L/D", "REQUIRED L/D"), std::isnan(n.tgtReqLD) ? "––" : b);
     std::snprintf(b, sizeof b, "%+d m", (int)std::lround(n.tgtArrivalAgl));
-    cell(1, 2, "DOLOT ŚLIZGIEM", std::isnan(n.tgtArrivalAgl) ? "––" : b);
-    c.text(X, 530, "BOOT długo = Go Home", font_s, BLACK);
+    cell(1, 2, TR("DOLOT ŚLIZGIEM", "FINAL GLIDE"), std::isnan(n.tgtArrivalAgl) ? "––" : b);
+    c.text(X, 530, TR("BOOT długo = Go Home", "BOOT long = Go Home"), font_s, BLACK);
 }
 
 // ------------------------------------------------------------------ THERMAL
@@ -903,19 +1125,19 @@ static void drawThermal(Canvas& c, const UiContext& u) {
                                                               : "VARIO  m/s");
     c.text(470, 210, fmtSigned1(n.vario1s), font_xxl, BLACK, RIGHT);
     c.hline(70, 236, 410, BLACK);
-    label(c, 80, 262, "średnio 30 s");
+    label(c, 80, 262, TR("średnio 30 s", "30 s average"));
     c.text(470, 320, fmtSigned1(n.varioAvg), font_l, BLACK, RIGHT);
-    label(c, 80, 352, n.circling ? "KOMIN: zysk / średnio" : "KOMIN (brak krążenia)");
+    label(c, 80, 352, n.circling ? TR("KOMIN: zysk / średnio", "THERMAL: gain / avg") : TR("KOMIN (brak krążenia)", "THERMAL (not circling)"));
     char b[48];
     if (n.circling) {
         std::snprintf(b, sizeof b, "%+d m  %+.1f", (int)std::lround(n.thermalGainM), (double)n.thermalAvg);
         c.text(470, 404, b, font_l, BLACK, RIGHT);
     }
-    label(c, 80, 440, "WYS. / NAD TERENEM");
+    label(c, 80, 440, TR("WYS. / NAD TERENEM", "ALT / AGL"));
     std::string alt = fmtInt(n.altMsl) + " / " + fmtInt(std::isnan(n.aglTerrain) ? n.aglTakeoff : n.aglTerrain) + " m";
     c.text(470, 492, alt, font_m, BLACK, RIGHT);
     if (n.wind.valid) {
-        std::snprintf(b, sizeof b, "wiatr %d km/h z %s", (int)std::lround(n.wind.speedKmh), fmtDeg(n.wind.fromDeg).c_str());
+        std::snprintf(b, sizeof b, TR("wiatr %d km/h z %s", "wind %d km/h from %s"), (int)std::lround(n.wind.speedKmh), fmtDeg(n.wind.fromDeg).c_str());
         c.text(80, 530, b, font_sb, BLACK);
     }
 
@@ -952,24 +1174,24 @@ static void drawThermal(Canvas& c, const UiContext& u) {
     c.fillCircle(cx, cy, 16, WHITE);
     c.arrow(cx, cy, 30, 0, BLACK);
     if (n.wind.valid) c.arrow(px0 + 50, 100, 70, n.wind.fromDeg + 180.f - n.trackDeg, BLACK, true);
-    label(c, px0 + 10, 64, "wiatr");
-    label(c, W - 10, 64, "● = noszenie", RIGHT);
+    label(c, px0 + 10, 64, TR("wiatr", "wind"));
+    label(c, W - 10, 64, TR("● = noszenie", "● = lift"), RIGHT);
 }
 
 // ------------------------------------------------------------------ AIRSPACE
 static void drawAirspace(Canvas& c, const UiContext& u) {
     const NavState& n = *u.nav;
     if (!u.asp || u.asp->zones().empty()) {
-        c.text(W / 2, 220, "Brak danych stref", font_l, BLACK, CENTER);
-        c.text(W / 2, 270, "Wgraj plik OpenAir (*.txt) do katalogu /airspace na karcie SD", font_sb, BLACK, CENTER);
+        c.text(W / 2, 220, TR("Brak danych stref", "No airspace data"), font_l, BLACK, CENTER);
+        c.text(W / 2, 270, TR("Wgraj plik OpenAir (*.txt) do katalogu /airspace na karcie SD", "Copy an OpenAir file (*.txt) to /airspace on the SD card"), font_sb, BLACK, CENTER);
         return;
     }
     // table header
     const int rowH = 37, top = 44;
-    c.text(10, top + 24, "STREFA", font_s, BLACK);
-    c.text(330, top + 24, "KL.", font_s, BLACK);
-    c.text(390, top + 24, "DÓŁ – GÓRA", font_s, BLACK);
-    c.text(785, top + 24, "ODL.", font_s, BLACK, RIGHT);
+    c.text(10, top + 24, TR("STREFA", "AIRSPACE"), font_s, BLACK);
+    c.text(330, top + 24, TR("KL.", "CL."), font_s, BLACK);
+    c.text(390, top + 24, TR("DÓŁ – GÓRA", "FLOOR – CEILING"), font_s, BLACK);
+    c.text(785, top + 24, TR("ODL.", "DIST"), font_s, BLACK, RIGHT);
     c.text(950, top + 24, "STATUS", font_s, BLACK, RIGHT);
     c.hline(0, top + 32, W, BLACK);
     int rows = 0;
@@ -983,30 +1205,30 @@ static void drawAirspace(Canvas& c, const UiContext& u) {
             c.text(330, y + 27, a.cls.substr(0, 4), font_sb, BLACK);
             c.text(390, y + 27, a.lower.label() + " – " + a.upper.label(), font_sb, BLACK);
             char b[32];
-            if (h.insideH) std::snprintf(b, sizeof b, "%s %dm", h.vpos == nav::VertPos::Below ? "pod" : "nad", (int)h.vertMarginM);
+            if (h.insideH) std::snprintf(b, sizeof b, "%s %dm", h.vpos == nav::VertPos::Below ? TR("pod", "below") : TR("nad", "above"), (int)h.vertMarginM);
             else std::snprintf(b, sizeof b, "%s km", fmtDistKm(h.distM).c_str());
-            if (h.insideH && h.vpos == nav::VertPos::Inside) std::snprintf(b, sizeof b, "W ŚRODKU");
+            if (h.insideH && h.vpos == nav::VertPos::Inside) std::snprintf(b, sizeof b, "%s", TR("W ŚRODKU", "INSIDE"));
             c.text(785, y + 27, b, font_sb, BLACK, RIGHT);
             if (!h.insideH) {
                 float rel = (float)nav::wrap180(h.bearingDeg - n.trackDeg);
                 c.arrow(806, y + 18, 26, rel, BLACK);
             }
             std::string st = activationLabel(u.asp->activationNow(a, n.utcSec, n.dateYmd));
-            if (h.timeToEntryS >= 0) st = "za " + fmtDur(h.timeToEntryS, false);
+            if (h.timeToEntryS >= 0) st = TR("za ", "in ") + fmtDur(h.timeToEntryS, false);
             c.text(950, y + 27, st, font_s, BLACK, RIGHT);
             if (h.level == 2) c.invertRect(0, y, W, rowH - 1);
             else if (h.level == 1) c.rect(0, y, W, rowH - 1, BLACK, 3);
             rows++;
         }
     }
-    if (rows == 0) c.text(W / 2, top + 120, "Brak stref w promieniu 20 km", font_m, BLACK, CENTER);
+    if (rows == 0) c.text(W / 2, top + 120, TR("Brak stref w promieniu 20 km", "No airspace within 20 km"), font_m, BLACK, CENTER);
 
     // vertical profile along track (10 km)
     const int PX = 80, PY = 345, PW = 870, PH = 185;
     c.hline(0, PY - 8, W, BLACK);
     c.hline(0, PY - 7, W, BLACK);
     if (!n.fix) {
-        c.text(W / 2, PY + 100, "Profil: brak GPS", font_sb, BLACK, CENTER);
+        c.text(W / 2, PY + 100, TR("Profil: brak GPS", "Profile: no GPS"), font_sb, BLACK, CENTER);
         return;
     }
     const int NS = 60;
@@ -1058,7 +1280,7 @@ static void drawAirspace(Canvas& c, const UiContext& u) {
         c.fillPolygon(poly.data(), (int)poly.size(), BLACK, DOTS);
         c.polyline(poly.data(), NS + 1, BLACK, 2);
     } else {
-        c.text(PX + PW / 2, PY + PH - 44, "brak mapy terenu (/terrain/*.hgt)", font_s, BLACK, CENTER);
+        c.text(PX + PW / 2, PY + PH - 44, TR("brak mapy terenu (/terrain/*.hgt)", "no terrain data (/terrain/*.hgt)"), font_s, BLACK, CENTER);
     }
     // glide line + own altitude
     float ld = u.set->glideRatio;
@@ -1090,10 +1312,10 @@ FuelButton fuelButtonAt(int x, int y) {
 static void drawFuel(Canvas& c, const UiContext& u) {
     const NavState& n = *u.nav;
     const nav::Settings& s = *u.set;
-    label(c, 20, 70, "ZAPAS CZASU LOTU");
+    label(c, 20, 70, TR("ZAPAS CZASU LOTU", "ENDURANCE"));
     valueUnit(c, 470, 200, fmtDur(n.enduranceMin * 60.f), font_xxl, "h");
     char b[64];
-    std::snprintf(b, sizeof b, "%.1f l z %.1f l", (double)n.fuelLeftL, (double)s.fuelStartL);
+    std::snprintf(b, sizeof b, TR("%.1f l z %.1f l", "%.1f l of %.1f l"), (double)n.fuelLeftL, (double)s.fuelStartL);
     c.text(20, 262, b, font_m, BLACK);
     // gauge
     c.rect(20, 280, 450, 46, BLACK, 3);
@@ -1103,10 +1325,10 @@ static void drawFuel(Canvas& c, const UiContext& u) {
     int rx = 26 + (int)(438 * std::min(1.f, resFrac));
     c.vline(rx, 272, 62, BLACK);
     c.vline(rx + 1, 272, 62, BLACK);
-    c.text(rx, 352, "rezerwa", font_s, BLACK, CENTER);
-    std::snprintf(b, sizeof b, "Zużyto: %.2f l", (double)n.fuelUsedL);
+    c.text(rx, 352, TR("rezerwa", "reserve"), font_s, BLACK, CENTER);
+    std::snprintf(b, sizeof b, TR("Zużyto: %.2f l", "Used: %.2f l"), (double)n.fuelUsedL);
     c.text(20, 400, b, font_sb, BLACK);
-    if (!n.engineOn) c.text(480, 400, "licznik stoi", font_sb, BLACK, RIGHT);
+    if (!n.engineOn) c.text(480, 400, TR("licznik stoi", "counter stopped"), font_sb, BLACK, RIGHT);
 
     c.vline(500, 40, 380, BLACK);
     const int X = 520;
@@ -1116,20 +1338,20 @@ static void drawFuel(Canvas& c, const UiContext& u) {
         c.hline(X, y + 16, W - X - 10, LIGHT);
     };
     std::snprintf(b, sizeof b, "%.1f l/h", (double)s.fuelFlowLph);
-    row(84, "Zużycie", b);
+    row(84, TR("Zużycie", "Fuel flow"), b);
     std::snprintf(b, sizeof b, "%d min", (int)s.fuelReserveMin);
-    row(140, "Rezerwa", b);
+    row(140, TR("Rezerwa", "Reserve"), b);
     std::snprintf(b, sizeof b, "%d km/h", (int)s.cruiseKmh);
-    row(196, "Prędkość przelotowa", b);
+    row(196, TR("Prędkość przelotowa", "Cruise speed"), b);
     std::snprintf(b, sizeof b, "%.1f l", (double)n.returnNeedL);
-    row(252, "Paliwo na powrót + rez.", n.homeSet ? b : "––");
-    row(308, "Czas powrotu", n.homeSet ? fmtDur(n.homeEteS) : "––");
+    row(252, TR("Paliwo na powrót + rez.", "Fuel to home + res."), n.homeSet ? b : "––");
+    row(308, TR("Czas powrotu", "Time to home"), n.homeSet ? fmtDur(n.homeEteS) : "––");
     if (n.homeSet) {
         if (n.returnMarginMin < 0) {
             c.fillRect(X, 330, W - X - 10, 80, BLACK);
-            c.text((X + W) / 2, 386, "WRACAJ!", font_l, WHITE, CENTER);
+            c.text((X + W) / 2, 386, TR("WRACAJ!", "TURN BACK!"), font_l, WHITE, CENTER);
         } else {
-            label(c, X, 360, "Margines powrotu");
+            label(c, X, 360, TR("Margines powrotu", "Return margin"));
             std::snprintf(b, sizeof b, "+%s", fmtDur(n.returnMarginMin * 60.f).c_str());
             c.text(W - 14, 402, b, font_l, BLACK, RIGHT);
         }
@@ -1141,7 +1363,7 @@ static void drawFuel(Canvas& c, const UiContext& u) {
     for (int i = 0; i < 4; i++) {
         int x = i * 240 + 8;
         c.rect(x, 436, 224, 94, BLACK, 3);
-        std::string t = i == 2 ? "PEŁNY BAK" : (i == 3 ? (n.engineOn ? "SILNIK: PRACUJE" : "SILNIK: WYŁ.") : labels[i]);
+        std::string t = i == 2 ? TR("PEŁNY BAK", "FULL TANK") : (i == 3 ? (n.engineOn ? TR("SILNIK: PRACUJE", "ENGINE: ON") : TR("SILNIK: WYŁ.", "ENGINE: OFF")) : labels[i]);
         c.text(x + 112, 494, t, i < 2 ? font_m : font_sb, BLACK, CENTER);
         if (i == 3 && !n.engineOn) c.invertRect(x + 3, 439, 218, 88);
     }
@@ -1158,33 +1380,33 @@ static void drawSystem(Canvas& c, const UiContext& u) {
         c.text(x + 455, y, trunc(v, font_sb, 455 - lw - 14), font_sb, BLACK, RIGHT);
         y += 31;
     };
-    c.text(10, y - 6, "BATERIA / GPS / BARO", font_sb, BLACK);
+    c.text(10, y - 6, TR("BATERIA / GPS / BARO", "BATTERY / GPS / BARO"), font_sb, BLACK);
     y += 30;
     std::snprintf(b, sizeof b, "%d %%  %.2f V", s.battPct, (double)s.battV);
-    line(10, "Bateria", b);
-    std::snprintf(b, sizeof b, "%+d mA %s", s.battMa, s.charging ? "(ładowanie)" : "");
-    line(10, "Prąd", b);
-    line(10, "Czas pracy (szac.)", s.battMinLeft >= 0 ? fmtDur(s.battMinLeft * 60.f) : "––");
-    line(10, "Pomiar baterii", s.battSource);
-    line(10, "Moduł GPS", s.gpsModule);
-    std::snprintf(b, sizeof b, "%s  sat %d  HDOP %.1f", n.fix ? "3D" : "brak", n.sats, (double)n.hdop);
+    line(10, TR("Bateria", "Battery"), b);
+    std::snprintf(b, sizeof b, "%+d mA %s", s.battMa, s.charging ? TR("(ładowanie)", "(charging)") : "");
+    line(10, TR("Prąd", "Current"), b);
+    line(10, TR("Czas pracy (szac.)", "Runtime (est.)"), s.battMinLeft >= 0 ? fmtDur(s.battMinLeft * 60.f) : "––");
+    line(10, TR("Pomiar baterii", "Battery gauge"), s.battSource);
+    line(10, TR("Moduł GPS", "GPS module"), s.gpsModule);
+    std::snprintf(b, sizeof b, "%s  sat %d  HDOP %.1f", n.fix ? "3D" : TR("brak", "none"), n.sats, (double)n.hdop);
     line(10, "Fix", b);
     std::snprintf(b, sizeof b, "%.5f  %.5f", n.lat, n.lon);
-    line(10, "Pozycja", b);
-    std::snprintf(b, sizeof b, "%u / błędy %u", (unsigned)s.gpsSentences, (unsigned)s.gpsCsErr);
-    line(10, "Zdania NMEA", b);
+    line(10, TR("Pozycja", "Position"), b);
+    std::snprintf(b, sizeof b, TR("%u / błędy %u", "%u / errors %u"), (unsigned)s.gpsSentences, (unsigned)s.gpsCsErr);
+    line(10, TR("Zdania NMEA", "NMEA sentences"), b);
     {
-        const char* src = n.altSource == nav::AltSource::Wired     ? "kabel"
+        const char* src = n.altSource == nav::AltSource::Wired     ? TR("kabel", "cable")
                           : n.altSource == nav::AltSource::BlueFly ? "BlueFly"
-                                                                    : "brak – GPS";
+                                                                    : TR("brak – GPS", "none – GPS");
         if (n.baroOk)
             std::snprintf(b, sizeof b, "%s %.1f hPa", src, (double)n.pressHpa);
         else
             std::snprintf(b, sizeof b, "%s", src);
-        line(10, "Barometr", b);
+        line(10, TR("Barometr", "Barometer"), b);
     }
     {
-        static const char* st[] = {"wyłączony", "szukam…", "łączę…", "połączony", "błąd"};
+        const char* st[] = {TR("wyłączony", "off"), TR("szukam…", "scanning…"), TR("łączę…", "connecting…"), TR("połączony", "connected"), TR("błąd", "error")};
         std::string v = st[std::max(0, std::min(4, s.bfState))];
         if (s.bfState == 4 && !s.bfError.empty()) v = s.bfError;
         if (s.bfState == 3) {
@@ -1199,51 +1421,59 @@ static void drawSystem(Canvas& c, const UiContext& u) {
         line(10, "BlueFly", v);
     }
     {
-        static const char* ps[] = {"wyłączony", "czeka", "połączony", "odbiór"};
+        const char* ps[] = {TR("wyłączony", "off"), TR("czeka", "waiting"), TR("połączony", "connected"), TR("odbiór", "receiving")};
         std::string v = ps[std::max(0, std::min(3, s.phoneState))];
         if (s.phoneState == 3) v += " " + std::to_string((int)std::lround(s.phoneProgress * 100)) + "%";
-        line(10, "Telefon", v);
+        line(10, TR("Telefon", "Phone"), v);
     }
-    std::snprintf(b, sizeof b, "%.1f hPa %s", (double)u.set->qnhHpa, n.qnhCalibrated ? "(skalibr.)" : "(domyśl.)");
+    std::snprintf(b, sizeof b, "%.1f hPa %s", (double)u.set->qnhHpa, n.qnhCalibrated ? TR("(skalibr.)", "(calibr.)") : TR("(domyśl.)", "(default)"));
     line(10, "QNH", b);
-    line(10, "Wysokość", "GPS " + (n.fix ? fmtInt(n.gpsAlt) : std::string("–")) + " / baro " +
+    line(10, TR("Wysokość", "Altitude"), "GPS " + (n.fix ? fmtInt(n.gpsAlt) : std::string("–")) + " / baro " +
                              (n.baroOk ? fmtInt(n.altMsl) : std::string("–")) + " m");
     std::snprintf(b, sizeof b, "%d m", (int)std::lround(n.groundMsl));
-    line(10, "Teren pod Tobą", std::isnan(n.groundMsl) ? "––" : b);
+    line(10, TR("Teren pod Tobą", "Terrain below you"), std::isnan(n.groundMsl) ? "––" : b);
 
     c.vline(480, 44, 490, BLACK);
     y = 76;
-    c.text(495, y - 6, "KARTA SD / DANE", font_sb, BLACK);
+    c.text(495, y - 6, TR("KARTA SD / DANE", "SD CARD / DATA"), font_sb, BLACK);
     y += 30;
-    std::snprintf(b, sizeof b, "%s  wolne %.0f MB", s.sdOk ? "OK" : "BRAK!", (double)s.sdFreeMb);
-    line(495, "Karta SD", b);
-    std::snprintf(b, sizeof b, "%d (%d pkt)", s.airspaceZones, s.airspacePoints);
-    line(495, "Strefy", b);
+    std::snprintf(b, sizeof b, TR("%s  wolne %.0f MB", "%s  free %.0f MB"), s.sdOk ? "OK" : TR("BRAK!", "MISSING!"), (double)s.sdFreeMb);
+    line(495, TR("Karta SD", "SD card"), b);
+    std::snprintf(b, sizeof b, TR("%d (%d pkt)", "%d (%d pts)"), s.airspaceZones, s.airspacePoints);
+    line(495, TR("Strefy", "Airspace"), b);
     if (s.activationEntries >= 0)
-        std::snprintf(b, sizeof b, "%d wpisów, %u", s.activationEntries, (unsigned)s.activationDate);
+        std::snprintf(b, sizeof b, TR("%d wpisów, %u", "%d entries, %u"), s.activationEntries, (unsigned)s.activationDate);
     else
-        std::snprintf(b, sizeof b, "brak pliku");
-    line(495, "Aktywacje", b);
-    line(495, "Punkty / trasa", std::to_string(s.waypoints) + " / " + std::to_string(s.routePoints));
+        std::snprintf(b, sizeof b, "%s", TR("brak pliku", "no file"));
+    line(495, TR("Aktywacje", "Activations"), b);
+    line(495, TR("Punkty / trasa", "Waypoints / route"), std::to_string(s.waypoints) + " / " + std::to_string(s.routePoints));
     {
         std::string v = std::to_string(s.terrainTiles) + " / ";
-        if (s.topoAreas == 0) v += "brak map";
+        if (s.topoAreas == 0) v += TR("brak map", "no maps");
         else if (!s.topoArea.empty()) v += s.topoArea + (s.topoAreas > 1 ? " +" + std::to_string(s.topoAreas - 1) : "");
-        else v += std::to_string(s.topoAreas) + " obsz.";
-        line(495, "Teren / mapa", v);
+        else v += std::to_string(s.topoAreas) + TR(" obsz.", " areas");
+        line(495, TR("Teren / mapa", "Terrain / map"), v);
     }
     {
         std::string fn = s.logFile.substr(s.logFile.find_last_of('/') + 1);
         if (fn.size() > 15) fn = fn.substr(fn.size() - 10);  // "NAV-01.igc"
-        line(495, "Zapis lotu", s.recording ? fn : "nie");
+        line(495, TR("Zapis lotu", "Flight log"), s.recording ? fn : TR("nie", "no"));
     }
     std::snprintf(b, sizeof b, "%u / %u kB", (unsigned)s.freeHeapKb, (unsigned)s.freePsramKb);
-    line(495, "RAM / PSRAM wolne", b);
-    if (s.touchX >= 0) std::snprintf(b, sizeof b, "%d, %d", s.touchX, s.touchY);
-    else std::snprintf(b, sizeof b, "–");
-    line(495, "Dotyk (test)", b);
-    line(495, "Wersja", s.version);
-    line(495, "Z telefonu", s.phoneLast.empty() ? "–" : s.phoneLast);
+    line(495, TR("RAM / PSRAM wolne", "RAM / PSRAM free"), b);
+    {
+        std::string v;
+        if (s.fanetState == 0) v = TR("wyłączony", "off");
+        else if (s.fanetState == 3) v = s.fanetErr.empty() ? TR("błąd", "error") : s.fanetErr;
+        else {
+            std::snprintf(b, sizeof b, "%s tx %u rx %u", s.fanetId.c_str(), (unsigned)s.fanetTxCount,
+                          (unsigned)s.fanetRxCount);
+            v = b;
+        }
+        line(495, "FANET", v);
+    }
+    line(495, TR("Wersja", "Version"), s.version);
+    line(495, TR("Z telefonu", "From phone"), s.phoneLast.empty() ? "–" : s.phoneLast);
     c.text(495, y, "I2C:", font_s, BLACK);
     c.text(950, y, trunc(s.i2cDevices, font_s, 390), font_s, BLACK, RIGHT);
     y += 31;
@@ -1260,6 +1490,7 @@ void drawScreen(Canvas& c, ScreenId s, const UiContext& u) {
         case SCR_FLIGHT: drawFlight(c, u); break;
         case SCR_MAP: drawMap(c, u); break;
         case SCR_TOPO: drawTopo(c, u); break;
+        case SCR_TRAFFIC: drawTraffic(c, u); break;
         case SCR_NAV: drawNav(c, u); break;
         case SCR_THERMAL: drawThermal(c, u); break;
         case SCR_AIRSPACE: drawAirspace(c, u); break;
@@ -1278,15 +1509,15 @@ void drawAlertBanner(Canvas& c, const UiContext& u, int id) {
     c.fillRect(12, 52, W - 24, 100, BLACK);
     c.text(30, 100, trunc(a.title, font_l, 760), font_l, WHITE);
     c.text(30, 140, trunc(a.detail, font_sb, 760), font_sb, WHITE);
-    c.text(W - 30, 92, "KLAWISZ", font_sb, WHITE, RIGHT);
-    c.text(W - 30, 130, "= potwierdź", font_sb, WHITE, RIGHT);
+    c.text(W - 30, 92, TR("KLAWISZ", "KEY"), font_sb, WHITE, RIGHT);
+    c.text(W - 30, 130, TR("= potwierdź", "= acknowledge"), font_sb, WHITE, RIGHT);
 }
 
 void drawSummary(Canvas& c, const UiContext& u) {
     const auto& f = u.fc->lastFlight;
     c.clear(WHITE);
-    drawStatusBar(c, SCR_FLIGHT, u, "PODSUMOWANIE");
-    c.text(W / 2, 110, "LOT ZAKOŃCZONY", font_l, BLACK, CENTER);
+    drawStatusBar(c, SCR_FLIGHT, u, TR("PODSUMOWANIE", "SUMMARY"));
+    c.text(W / 2, 110, TR("LOT ZAKOŃCZONY", "FLIGHT COMPLETED"), font_l, BLACK, CENTER);
     char b[64];
     int y = 180;
     auto row = [&](const char* l, const std::string& v) {
@@ -1294,19 +1525,19 @@ void drawSummary(Canvas& c, const UiContext& u) {
         c.text(830, y, v, font_m, BLACK, RIGHT);
         y += 46;
     };
-    row("Czas lotu", fmtDur((float)f.durationS));
+    row(TR("Czas lotu", "Flight time"), fmtDur((float)f.durationS));
     std::snprintf(b, sizeof b, "%d m", (int)std::lround(f.maxAlt));
-    row("Maks. wysokość", b);
+    row(TR("Maks. wysokość", "Max altitude"), b);
     std::snprintf(b, sizeof b, "%+.1f / %+.1f m/s", (double)f.maxClimb, (double)f.maxSink);
-    row("Maks. wznoszenie / opadanie", b);
+    row(TR("Maks. wznoszenie / opadanie", "Max climb / sink"), b);
     std::snprintf(b, sizeof b, "%.1f km", (double)f.distKm);
-    row("Przebyta trasa", b);
+    row(TR("Przebyta trasa", "Distance flown"), b);
     std::snprintf(b, sizeof b, "%.1f km", (double)f.maxDistHomeKm);
-    row("Maks. odległość od startu", b);
+    row(TR("Maks. odległość od startu", "Max distance from takeoff"), b);
     std::snprintf(b, sizeof b, "%.1f l", (double)f.fuelUsedL);
-    row("Zużyte paliwo (szac.)", b);
+    row(TR("Zużyte paliwo (szac.)", "Fuel used (est.)"), b);
     if (u.sys && !u.sys->logFile.empty()) c.text(W / 2, 500, u.sys->logFile, font_s, BLACK, CENTER);
-    c.text(W / 2, 530, "Naciśnij klawisz, aby wrócić", font_s, BLACK, CENTER);
+    c.text(W / 2, 530, TR("Naciśnij klawisz, aby wrócić", "Press a key to return"), font_s, BLACK, CENTER);
 }
 
 void drawTransferBanner(Canvas& c, const UiContext& u) {
@@ -1316,9 +1547,9 @@ void drawTransferBanner(Canvas& c, const UiContext& u) {
     c.rect(0, y, W, 70, BLACK, 3);
     char b[32];
     std::snprintf(b, sizeof b, "%d%%", (int)std::lround(u.sys->phoneProgress * 100));
-    c.text(16, y + 30, "Odbieranie z telefonu:", font_sb, BLACK);
+    c.text(16, y + 30, TR("Odbieranie z telefonu:", "Receiving from phone:"), font_sb, BLACK);
     c.text(W - 16, y + 30, b, font_sb, BLACK, RIGHT);
-    c.text(16 + Canvas::textWidth("Odbieranie z telefonu: ", font_sb), y + 30, trunc(u.sys->phoneFile, font_sb, 560),
+    c.text(16 + Canvas::textWidth(TR("Odbieranie z telefonu: ", "Receiving from phone: "), font_sb), y + 30, trunc(u.sys->phoneFile, font_sb, 560),
            font_sb, BLACK);
     c.rect(16, y + 42, W - 32, 18, BLACK, 2);
     c.fillRect(19, y + 45, (int)((W - 38) * std::max(0.f, std::min(1.f, u.sys->phoneProgress))), 12, BLACK);
@@ -1328,9 +1559,9 @@ void drawPowerHint(Canvas& c) {
     const int x = 180, y = 190, w = 600, h = 160;
     c.fillRect(x, y, w, h, WHITE);
     c.rect(x, y, w, h, BLACK, 6);
-    c.text(W / 2, y + 70, "WYŁĄCZANIE…", font_l, BLACK, CENTER);
-    c.text(W / 2, y + 115, "trzymaj oba przyciski jeszcze 2 s", font_sb, BLACK, CENTER);
-    c.text(W / 2, y + 145, "puść, aby anulować", font_s, BLACK, CENTER);
+    c.text(W / 2, y + 70, TR("WYŁĄCZANIE…", "POWERING OFF…"), font_l, BLACK, CENTER);
+    c.text(W / 2, y + 115, TR("trzymaj oba przyciski jeszcze 2 s", "keep holding both buttons for 2 s"), font_sb, BLACK, CENTER);
+    c.text(W / 2, y + 145, TR("puść, aby anulować", "release to cancel"), font_s, BLACK, CENTER);
 }
 
 void drawPowerOff(Canvas& c, const char* line1, const char* line2) {
@@ -1343,7 +1574,7 @@ void drawPowerOff(Canvas& c, const char* line1, const char* line2) {
 void drawBoot(Canvas& c, const std::vector<std::string>& lines, const char* version) {
     c.clear(WHITE);
     c.text(W / 2, 110, "ParaNav", font_xl, BLACK, CENTER);
-    c.text(W / 2, 150, std::string("komputer motoparalotniowy  v") + version, font_sb, BLACK, CENTER);
+    c.text(W / 2, 150, std::string(TR("komputer motoparalotniowy  v", "paramotor flight computer  v")) + version, font_sb, BLACK, CENTER);
     int y = 210;
     for (auto& l : lines) {
         c.text(80, y, trunc(l, font_sb, W - 160), font_sb, BLACK);

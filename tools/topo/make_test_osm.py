@@ -59,7 +59,7 @@ way(coast[40:61], {"natural": "coastline"})
 way(circle(5, 30, 3, 16, 0.2, ccw=True), {"natural": "coastline"}, closed=True)
 
 # lake (closed way) + lake with an island (multipolygon)
-way(circle(-12, -8, 2.5, 20, 0.15), {"natural": "water", "name": "Jezioro Przykładowe"}, closed=True)
+way(circle(-12, -8, 2.5, 20, 0.15), {"natural": "water", "name": "Example Lake"}, closed=True)
 o = way(circle(14, -12, 4, 24, 0.1), {}, closed=True)
 i = way(circle(14.5, -12, 1.2, 12), {}, closed=True)
 _wid[0] += 1
@@ -75,15 +75,15 @@ rels.append(Relation(id=2, members=[("w", fo, "outer"), ("w", fi, "inner")],
                      tags={"type": "multipolygon", "landuse": "forest"}, version=1))
 
 # towns: built-up areas + place nodes
-for (x, y, r, name, kind) in [(0, 0, 2.2, "Miasto Testowe", "town"), (-14, 8, 1.0, "Wieś Pierwsza", "village"),
-                              (18, 10, 1.2, "Wieś Druga", "village"), (-25, -2, 4, "Gród Duży", "city")]:
+for (x, y, r, name, kind) in [(0, 0, 2.2, "Test Town", "town"), (-14, 8, 1.0, "First Village", "village"),
+                              (18, 10, 1.2, "Second Village", "village"), (-25, -2, 4, "Big City", "city")]:
     way(circle(x, y, r, 16, 0.2), {"landuse": "residential"}, closed=True)
     node(x, y, {"place": kind, "name": name})
 way(circle(2.5, -2.5, 0.8, 8), {"landuse": "industrial"}, closed=True)
-node(6, -5, {"place": "hamlet", "name": "Przysiółek"})
+node(6, -5, {"place": "hamlet", "name": "Hamlet"})
 
 # river into the sea, stream
-way([(-30 + i * 1.5, -25 + i * 1.8 + math.sin(i) * 0.8) for i in range(28)], {"waterway": "river", "name": "Rzeka"})
+way([(-30 + i * 1.5, -25 + i * 1.8 + math.sin(i) * 0.8) for i in range(28)], {"waterway": "river", "name": "River"})
 way([(8 + i * 0.6, -4 + i * 0.5) for i in range(12)], {"waterway": "stream"})
 
 # roads, railway
@@ -107,9 +107,9 @@ node(-8, -3, {"man_made": "tower", "tower:type": "communication"})
 
 # aerodrome (area) + runway + airstrip node
 way([(12, -20), (17, -20), (17, -17.5), (12, -17.5)],
-    {"aeroway": "aerodrome", "name": "Lotnisko Testowe", "icao": "EPXX"}, closed=True)
+    {"aeroway": "aerodrome", "name": "Test Aerodrome", "icao": "EPXX"}, closed=True)
 way([(12.5, -19), (16.5, -18.5)], {"aeroway": "runway", "width": "30"})
-node(-22, 14, {"aeroway": "airstrip", "name": "Lądowisko Łąka"})
+node(-22, 14, {"aeroway": "airstrip", "name": "Łąka Airstrip"})
 
 with osmium.SimpleWriter(sys.argv[1]) as w:
     for n in nodes:

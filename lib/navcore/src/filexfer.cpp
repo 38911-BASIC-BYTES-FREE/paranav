@@ -1,4 +1,5 @@
 #include "filexfer.h"
+#include "i18n.h"
 
 #include <dirent.h>
 #include <strings.h>
@@ -84,7 +85,7 @@ std::string FileReceiver::lastResult() const {
 void FileReceiver::onDisconnect() {
     if (file_) {
         closeTemp(true);
-        setResult("przerwano (rozłączono)");
+        setResult(TR("przerwano (rozłączono)", "aborted (disconnected)"));
     }
 }
 
@@ -139,7 +140,7 @@ void FileReceiver::onCtrl(const std::string& lineIn) {
         bool ok = received_ == size_ && crc_ == crcExpected_;
         closeTemp(!ok);
         if (!ok) {
-            setResult("błąd sumy kontrolnej");
+            setResult(TR("błąd sumy kontrolnej", "checksum error"));
             send(received_ != size_ ? "ERR SIZE" : "ERR CRC");
             return;
         }
@@ -284,7 +285,7 @@ bool FileReceiver::install(const std::string& root, const Pending& p, std::strin
     count = 0;
     std::string target = targetPath(root, p.kind, p.name);
     if (target.empty()) {
-        msg = "nieznany typ pliku";
+        msg = TR("nieznany typ pliku", "unknown file type");
         return false;
     }
     // validate the content before it replaces anything
@@ -292,7 +293,7 @@ bool FileReceiver::install(const std::string& root, const Pending& p, std::strin
         count = quickCountOpenAir(p.tmpPath.c_str());
         if (count <= 0) {
             std::remove(p.tmpPath.c_str());
-            msg = "brak stref w pliku (czy to format OpenAir?)";
+            msg = TR("brak stref w pliku (czy to format OpenAir?)", "no airspace in the file (is it OpenAir?)");
             return false;
         }
     } else if (p.kind == "waypoints") {
@@ -300,7 +301,7 @@ bool FileReceiver::install(const std::string& root, const Pending& p, std::strin
         count = db.loadCup(p.tmpPath.c_str());
         if (count <= 0) {
             std::remove(p.tmpPath.c_str());
-            msg = "brak punktów w pliku (czy to SeeYou .cup?)";
+            msg = TR("brak punktów w pliku (czy to SeeYou .cup?)", "no waypoints in the file (is it SeeYou .cup?)");
             return false;
         }
     } else if (p.kind == "route") {
@@ -308,7 +309,7 @@ bool FileReceiver::install(const std::string& root, const Pending& p, std::strin
         count = r.loadCup(p.tmpPath.c_str());
         if (count <= 0) {
             std::remove(p.tmpPath.c_str());
-            msg = "brak punktów trasy w pliku";
+            msg = TR("brak punktów trasy w pliku", "no route points in the file");
             return false;
         }
     } else if (p.kind == "activations") {
@@ -326,7 +327,7 @@ bool FileReceiver::install(const std::string& root, const Pending& p, std::strin
     }
     std::remove(target.c_str());
     if (std::rename(p.tmpPath.c_str(), target.c_str()) != 0) {
-        msg = "nie mogę zapisać pliku na karcie";
+        msg = TR("nie mogę zapisać pliku na karcie", "cannot write the file to the card");
         return false;
     }
     msg = target.substr(root.size() + 1);

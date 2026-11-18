@@ -14,7 +14,7 @@ cp "$ROOT"/src/*.cpp "$ROOT"/src/*.h "$SK"/
 mv "$SK/main.cpp" "$SK/paranav_main.cpp"
 echo "// see paranav_main.cpp" > "$SK/paranav.ino"
 $CLI compile --fqbn "$FQBN:PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc,USBMode=default" \
-  ${NIMBLE_DIR:+--library "$NIMBLE_DIR"} --library "$ROOT/lib/epdiy" --library "$ROOT/lib/SensorLib" --library "$ROOT/lib/BQ27220" --library "$ROOT/lib/navcore" \
+  ${NIMBLE_DIR:+--library "$NIMBLE_DIR"} --library "$ROOT/lib/epdiy" --library "$ROOT/lib/SensorLib" --library "$ROOT/lib/BQ27220" --library "$ROOT/lib/navcore" --library "$ROOT/lib/RadioLib" \
   --build-property "compiler.cpp.extra_flags=-std=gnu++17 -DBOARD_HAS_PSRAM $NIMBLE_FLAGS" \
   --build-property "compiler.c.extra_flags=$NIMBLE_FLAGS" \
   --output-dir "$ROOT/build" "$SK" "$@"

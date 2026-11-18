@@ -1,9 +1,11 @@
 #include "help.h"
 
+#include "../i18n.h"
+
 namespace ui {
 
 // Note: use only characters present in the bitmap fonts (see tools/gen_fonts.py).
-static const std::vector<HelpTopic> kTopics = {
+static const std::vector<HelpTopic> kTopicsPl = {
     {"Przyciski i dotyk",
      "KLAWISZ – przycisk na boku obudowy. BOOT – drugi przycisk. PWR – tylko włącza urządzenie (program go nie widzi).\n"
      "– KLAWISZ krótko: następny ekran.\n"
@@ -17,8 +19,9 @@ static const std::vector<HelpTopic> kTopics = {
      "W menu: KLAWISZ krótko – następna pozycja, długo – wybierz / zapisz. BOOT krótko – poprzednia pozycja, "
      "długo – poziom wyżej / wyjście. Przy zmianie liczby: KLAWISZ krótko = plus, BOOT krótko = minus.\n"
      "W pomocy: KLAWISZ – następna strona, BOOT – poprzednia, długie naciśnięcie – powrót do listy.\n"
+     "Język / Language: Menu > Ekran i mapa.\n"
      "Dotyk (bez rękawic): pasek u góry – menu; lewa krawędź – poprzedni ekran; prawa krawędź – następny. "
-     "MAPA: dotyk mapy zmienia skalę. TOPO: dotyk górnej połowy mapy – przybliż, dolnej – oddal. NAWIGACJA: dotyk zmienia cel (start, trasa, lądowisko). "
+     "MAPA: dotyk mapy zmienia skalę. TOPO: dotyk górnej połowy mapy – przybliż, dolnej – oddal. RUCH: dotyk pilota na liście – leć do niego. NAWIGACJA: dotyk zmienia cel (start, trasa, lądowisko). "
      "PALIWO: przyciski na dole ekranu. Alarm: dotknięcie górnej części ekranu go potwierdza."},
 
     {"Pasek stanu",
@@ -29,6 +32,7 @@ static const std::vector<HelpTopic> kTopics = {
      "– Czarny kwadrat z ! – jest aktywny alarm (również już potwierdzony).\n"
      "– Czarny kwadrat ze słońcem – podświetlenie włączone. W dzień wyłącz je, zużywa baterię.\n"
      "– TEL – połączony telefon z aplikacją ParaNav.\n"
+     "– FN n – tylu innych pilotów słychać przez FANET. Białe na czarnym – ktoś jest niebezpiecznie blisko.\n"
      "– BF – połączony BlueFly. W ramce: połączony, ale wysokość liczona z barometru na kablu. Białe na czarnym: "
      "wysokość i vario z BlueFly.\n"
      "– ● REC – trwa zapis lotu (IGC + GPX).\n"
@@ -80,6 +84,21 @@ static const std::vector<HelpTopic> kTopics = {
      "– przybliż, dolnej – oddal. Kropki w regularnej siatce = brak mapy dla tego miejsca.\n"
      "Mapa jest pomocą orientacyjną, nie mapą lotniczą – przeszkody mogą być niekompletne."},
 
+    {"FANET – inni piloci",
+     "Wbudowane radio LoRa 868 MHz nadaje Twoją pozycję w otwartym systemie FANET i odbiera innych pilotów. "
+     "Widzisz urządzenia FANET (Skytraxx, XC Tracer, Naviter, Burnair, Leaf, GXAirCom…). Samolotów i szybowców "
+     "z samym FLARM nie widać – i one nie widzą Ciebie.\n"
+     "– Nadajesz jako paralotnia, co 5 s (w tłumie rzadziej). Stacje OGN mogą pokazać Cię w internecie "
+     "(np. glidernet.org) – wyłączysz to w Menu > FANET > Widoczny online.\n"
+     "– MAPA i TOPO: strzałka = pilot i jego kierunek, liczba = różnica wysokości (+ nad Tobą), ↑↓ = wznosi się / "
+     "opada. Pusta strzałka – brak danych od 20 s. Kółko z kwadracikiem – ktoś na ziemi. Gruby okrąg – zagrożenie.\n"
+     "– Ekran RUCH: lista (odległość, kierunek względem kursu, różnica wysokości, vario) i radar kursem do góry. "
+     "Dotknij pilota – staje się celem nawigacji (leć do kolegi).\n"
+     "– Na innych ekranach: ramka RUCH z prawej u góry – ktoś bliżej niż próg ostrzeżenia albo zbliża się "
+     "(do 45 s). Pasek RUCH! – połowa progu albo za mniej niż 20 s. Progi: Menu > FANET.\n"
+     "To pomoc, nie system antykolizyjny: pozycje przychodzą co ok. 5 s, a antena jest wewnętrzna – zasięg zależy "
+     "od położenia urządzenia. Zawsze patrz w powietrze."},
+
     {"Ekran NAWIGACJA",
      "Prowadzenie do celu. Cel wybierasz w Menu > Nawigacja albo dotykiem tego ekranu. BOOT długo = cel START.\n"
      "– Róża kompasu obraca się z kursem; trójkąt u góry to Twój kurs.\n"
@@ -127,11 +146,14 @@ static const std::vector<HelpTopic> kTopics = {
      "– Telefon: wyłączony / czeka / połączony / odbiór (procent). Z telefonu: wynik ostatniego przesłania.\n"
      "– Karta SD, liczba stref, aktywacji, punktów, kafli terenu i mapa TOPO dla Twojej okolicy, plik zapisu lotu, "
      "wolna pamięć.\n"
-     "– Dotyk (test) – współrzędne ostatniego dotknięcia. I2C – adresy wykrytych układów.\n"
+     "– FANET: Twój numer (ID), liczba wysłanych (tx) i odebranych (rx) pakietów albo błąd radia. "
+     "I2C – adresy wykrytych układów.\n"
      "– Na dole błędy wczytywania plików."},
 
     {"Alarmy",
      "Alarm to czarny pasek u góry ekranu. Od najważniejszego:\n"
+     "– RUCH! – inny pilot FANET bardzo blisko albo za chwilę będzie (kierunek jak na zegarze: godz. 12 = przed "
+     "Tobą, 3 = z prawej).\n"
      "– W STREFIE – jesteś w aktywnej strefie.\n"
      "– WRACAJ – PALIWO! – paliwa nie starczy na powrót z rezerwą.\n"
      "– STREFA – zbliżasz się do strefy (w poziomie lub w pionie).\n"
@@ -198,6 +220,219 @@ static const std::vector<HelpTopic> kTopics = {
      "– Wyłączenie (oba przyciski 3 s albo menu) również zamyka i zapisuje lot."},
 };
 
-const std::vector<HelpTopic>& helpTopics() { return kTopics; }
+static const std::vector<HelpTopic> kTopicsEn = {
+    {"Buttons and touch",
+     "KEY – the button on the side of the case. BOOT – the second button. PWR – power-on only (not visible to the software).\n"
+     "– KEY short: next screen.\n"
+     "– KEY long (0.7 s): menu.\n"
+     "– BOOT short: previous screen.\n"
+     "– BOOT long: Go Home – target = HOME, switches to the NAV screen.\n"
+     "– Both short: front light on/off.\n"
+     "– Both for 3 s: power off. After 1 s POWERING OFF appears, releasing cancels. Power off does not work while "
+     "USB is connected.\n"
+     "– When an alert is shown: any short press acknowledges it.\n"
+     "In the menu: KEY short – next item, long – select / save. BOOT short – previous item, long – up one level / "
+     "exit. When editing a number: KEY short = plus, BOOT short = minus.\n"
+     "In help: KEY – next page, BOOT – previous, long press – back to the list.\n"
+     "Language / Język: Menu > Display and map.\n"
+     "Touch (no gloves): top bar – menu; left edge – previous screen; right edge – next. MAP: tap the map to change "
+     "the scale. TOPO: tap the upper half to zoom in, the lower half to zoom out. TRAFFIC: tap a pilot to fly to him. "
+     "NAV: tap to change the target (home, route, landing). FUEL: buttons at the bottom. Alert: tap the upper part "
+     "of the screen to acknowledge."},
+
+    {"Status bar",
+     "From the left:\n"
+     "– Screen name and dots – which screen this is (filled dot = current).\n"
+     "– Clock – local time from GPS (time zone in Menu > Display and map). --:-- = no GPS time.\n"
+     "– ▲ h:mm – flight time, in the air only.\n"
+     "– Black box with ! – an alert is active (also if already acknowledged).\n"
+     "– Black box with a sun – front light on. Switch it off in daylight, it drains the battery.\n"
+     "– TEL – phone with the ParaNav app connected.\n"
+     "– FN n – this many other pilots heard via FANET. White on black – someone is dangerously close.\n"
+     "– BF – BlueFly connected. Framed: connected, but altitude comes from the wired barometer. White on black: "
+     "altitude and vario from BlueFly.\n"
+     "– ● REC – flight is being logged (IGC + GPX).\n"
+     "– GPS n – satellites in use. GPS in reverse video = no position.\n"
+     "– ⚡ – battery charging.\n"
+     "– Battery percentage and icon. ? = no battery reading (details on the SYSTEM screen)."},
+
+    {"FLIGHT screen",
+     "Main in-flight screen.\n"
+     "– VARIO: bar on the left (+/- 5 m/s, climb filled, sink hatched), instant value and 30 s average.\n"
+     "– ALTITUDE MSL: barometric. BlueFly = from BlueFly via Bluetooth, (GPS) = no barometer, altitude and vario "
+     "from GPS (less accurate, vario lags).\n"
+     "– above takeoff; AGL – needs terrain data on the card.\n"
+     "– GROUND SPEED; TRACK – direction over the ground.\n"
+     "– HOME: distance, arrow to home relative to your track (up = ahead), ETE under power with wind, and bearing.\n"
+     "– WIND: speed and the direction it blows from. The hollow arrow shows where it blows to, relative to your "
+     "track. Needs a turn of at least 200°. Minutes in brackets = age of the measurement.\n"
+     "– FUEL: endurance, litres and return margin. Black TURN BACK bar = not enough fuel to get home with reserve.\n"
+     "– GLIDE RATIO L/D: measured only in a steady glide, otherwise ––. polar = value from the settings. "
+     "arrival at home = height margin over home after an engine-off glide (wind and safety height included). "
+     "✓ = within glide; black bar = home out of glide range."},
+
+    {"MAP screen",
+     "Moving map: track up (or north up – Menu > Display and map). The arrow in the centre is you.\n"
+     "– Airspace: thick outline – prohibited, restricted, danger and CTR; thin – others; dashed – inactive.\n"
+     "– Hatching = active airspace relevant at your altitude: cross-hatch – P, R, Q; dense diagonal – CTR, TRA, TSA; "
+     "sparse diagonal – others. Airspace far above or below you is not hatched.\n"
+     "– Solid line – flight track. Dashed circle – engine-off glide range (stretched downwind).\n"
+     "– House – HOME. Dashed line – course to the target. Circle – waypoint, square – landing field.\n"
+     "– Arrows with numbers – other pilots (FANET), number = height difference.\n"
+     "– N in a circle – where north is. Hollow arrow with a number – wind (km/h). Bar in the corner – scale.\n"
+     "Panel on the right: altitude, vario, ground speed and NEAREST AIRSPACE – name, class, floor – ceiling, "
+     "distance with arrow, INSIDE!, below/above (metres), time to entry and activation status. "
+     "Tap the map to change the scale: 1, 2, 5, 10, 20, 50 km."},
+
+    {"TOPO screen",
+     "Topographic map from the SD card (/maps folder), always north up. Arrow in a circle – you and your track.\n"
+     "– The map moves in steps: once you are about 1/3 of the screen away from the centre, the view is re-centred "
+     "with more map ahead of you. This way the e-paper does not redraw the whole map every second.\n"
+     "– Map symbols: horizontal lines – water and sea; dots – forest; cross-hatch – built-up area; line with cross "
+     "ticks and dots – high-voltage power line (thinner, no dots – medium voltage); tripod in a circle – wind "
+     "turbine; caret with a dot – mast, tower, chimney (number = height in m); circle with a bar – aerodrome or "
+     "airstrip; black bars – runways; black lines – roads; double line – river; black and white line – railway.\n"
+     "– Overlays: airspace outlines (short dashes, thin dashed – inactive), waypoints and landings, track, house – "
+     "HOME, long dashes – line to the target, arrows – other pilots (FANET).\n"
+     "– Corners: altitude and AGL, ground speed and track, vario and wind (hollow arrow – where it blows to), "
+     "nearest airspace (arrow – direction, north up).\n"
+     "– At the bottom: scale and map level z10 (screen ~90 km wide) … z14 (~6 km). Tap the upper half of the map "
+     "to zoom in, the lower half to zoom out. Dots in a regular grid = no map for this place.\n"
+     "The map is an orientation aid, not an aeronautical chart – obstacles may be incomplete."},
+
+    {"FANET – other pilots",
+     "The built-in 868 MHz LoRa radio transmits your position on the open FANET network and receives other pilots. "
+     "You see FANET devices (Skytraxx, XC Tracer, Naviter, Burnair, Leaf, GXAirCom…). Aircraft and gliders with "
+     "FLARM only are not shown – and they do not see you.\n"
+     "– You transmit as a paraglider every 5 s (less often in a crowd). OGN ground stations may show you on the "
+     "internet (e.g. glidernet.org) – switch off in Menu > FANET > Visible online.\n"
+     "– MAP and TOPO: arrow = pilot and his track, number = height difference (+ above you), ↑↓ = climbing / "
+     "sinking. Hollow arrow – no data for 20 s. Circle with a square – someone on the ground. Thick circle – threat.\n"
+     "– TRAFFIC screen: list (distance, bearing relative to your track, height difference, vario) and a track-up "
+     "radar. Tap a pilot – he becomes the navigation target (fly to a friend).\n"
+     "– On other screens: TRAFFIC box top right – someone closer than the warning limit or closing in (within 45 s). "
+     "TRAFFIC! bar – half the limits or within 20 s. Limits: Menu > FANET.\n"
+     "This is an aid, not a collision avoidance system: positions arrive every ~5 s and the antenna is internal – "
+     "range depends on where the device sits. Always keep a lookout."},
+
+    {"NAV screen",
+     "Guidance to the target. Choose the target in Menu > Navigation or by tapping this screen. BOOT long = HOME.\n"
+     "– The compass rose turns with your track; the triangle at the top is your track.\n"
+     "– Big arrow – direction to the target. Bottom left: how many degrees to turn (◄ left, ► right).\n"
+     "– DISTANCE, BEARING, ETE (under power, with wind), ETA (local time).\n"
+     "– FUEL AT TARGET – fuel left on arrival.\n"
+     "– REQUIRED L/D – glide ratio needed to reach the target engine-off; FINAL GLIDE – height margin (+) or "
+     "shortfall (-) over the target without engine.\n"
+     "Route: points switch automatically when you get closer than 200 m."},
+
+    {"THERMAL screen",
+     "For engine-off soaring.\n"
+     "– Large vario, 30 s average and bar.\n"
+     "– THERMAL: height gain and average climb since circling started (shown while circling).\n"
+     "– Altitude and AGL, wind.\n"
+     "– On the right the track of the last 90 s (track up): black dots – climb, bigger dot = stronger lift; "
+     "hollow – sink. Ø – view diameter. Hollow arrow – wind direction."},
+
+    {"AIRSPACE screen",
+     "Table of up to 7 nearest airspaces within 20 km.\n"
+     "– Columns: name, class, floor – ceiling, distance with arrow (or below/above and metres when you are within "
+     "its outline), status.\n"
+     "– Status: PERM. (permanent), ACTIVE, INACT. (inactive), ACT.? – no activation data (treated as active), in m:ss – predicted "
+     "time to entry.\n"
+     "– Framed row – warning. Row in reverse video – you are inside.\n"
+     "Profile at the bottom: 10 km ahead along your track. Dotted area – terrain, hatched boxes – airspace, "
+     "triangle – your altitude, dashed line – engine-off glide."},
+
+    {"FUEL screen",
+     "– Big number – endurance (h:mm). Below: litres and a bar with the reserve marked.\n"
+     "– On the right: fuel flow, reserve, cruise speed, fuel needed to get home with reserve, time to home and "
+     "margin. TURN BACK! = negative margin.\n"
+     "– Touch buttons: -0.5 l / +0.5 l – fuel at takeoff; FULL TANK – resets fuel used; ENGINE – when off, the fuel "
+     "counter stops.\n"
+     "Consumption is computed from engine running time and the set flow in l/h – there is no fuel sensor. "
+     "Set the fuel before the flight in Menu > Fuel."},
+
+    {"SYSTEM screen",
+     "Device status, useful when troubleshooting.\n"
+     "– Battery, current, runtime, battery gauge source.\n"
+     "– GPS: module, fix, satellites, position, NMEA sentences received.\n"
+     "– Barometer: altitude source (cable, BlueFly, none – GPS) and pressure. BlueFly: connection state, BlueFly "
+     "battery and signal strength (dBm, closer to zero is better).\n"
+     "– QNH (calibr. = set), GPS and barometric altitude, terrain below you.\n"
+     "– Phone: off / waiting / connected / receiving (percent). From phone: result of the last upload.\n"
+     "– SD card, airspace, activations, waypoints, terrain tiles and the TOPO map for your area, flight log file, "
+     "free memory.\n"
+     "– FANET: your ID, packets sent (tx) and received (rx) or a radio error. I2C – addresses of detected chips.\n"
+     "– At the bottom: file loading errors."},
+
+    {"Alerts",
+     "An alert is a black bar at the top of the screen. Highest priority first:\n"
+     "– TRAFFIC! – another FANET pilot very close or about to be (clock direction: 12 o'clock = ahead, 3 = right).\n"
+     "– INSIDE – you are inside active airspace.\n"
+     "– TURN BACK – FUEL! – not enough fuel to get home with reserve.\n"
+     "– AIRSPACE – approaching airspace (horizontally or vertically).\n"
+     "– LOW! – too low above terrain (when enabled in the settings).\n"
+     "– LOW FUEL – return margin below 10 min.\n"
+     "– NO GPS, NO BAROMETER (barometer lost in flight – altitude from GPS), LOW BATTERY.\n"
+     "A short button press acknowledges the alert. It comes back when the situation clears and happens again; INSIDE "
+     "and TURN BACK repeat every 2 minutes. Alerts work in flight (battery – always). Limits: Menu > Alarms."},
+
+    {"Barometer and BlueFly",
+     "Altitude and vario come automatically from the first working source:\n"
+     "– 1. MS5611 barometer on the QWIIC cable. It can be plugged in later – it is checked every 10 s.\n"
+     "– 2. BlueFlyVario via Bluetooth (BLE). Just switch the BlueFly on – it is found and connected automatically, "
+     "also after a lost link. The BlueFly GPS position is not used, only the internal GPS.\n"
+     "– 3. No barometer: altitude and vario from GPS (less accurate).\n"
+     "When the source changes, the vario restarts without a false jump. If the barometer is lost in flight, the "
+     "NO BAROMETER alert appears.\n"
+     "A BlueFly connected to this device cannot connect to a phone (e.g. XCTrack) at the same time. The BlueFly "
+     "vario sound always works, regardless of the link.\n"
+     "Menu > System: BlueFly on/off (Bluetooth off saves battery) and BlueFly: reconnect."},
+
+    {"Phone – file upload",
+     "The ParaNav Android app sends files via Bluetooth – no need to remove the SD card.\n"
+     "– In the app: Connect, then pick a file on the phone: airspace (OpenAir .txt), waypoints or route (.cup). "
+     "Today's airspace activations are typed in the app.\n"
+     "– The Replace option deletes previous files of that kind (airspace: all .txt except activations).\n"
+     "– The device checks the file (checksum, whether it contains airspace or waypoints) before saving it. A bad "
+     "file never overwrites a good one.\n"
+     "– During the upload a progress bar is shown at the bottom and TEL in the status bar.\n"
+     "– Switch off: Menu > System > Phone (Bluetooth). Any phone with the app nearby can connect, so switch it off "
+     "when not in use."},
+
+    {"Files on the SD card",
+     "microSD card, FAT32. Folders:\n"
+     "– /airspace – airspace in OpenAir format, .txt files (all are loaded).\n"
+     "– /airspace/activations.txt – today's activations. First line date=YYYY-MM-DD, then e.g. EPTR12 0800-1500 "
+     "(UTC, several intervals allowed).\n"
+     "– /waypoints – waypoints, .cup files (SeeYou). Style 2-5 = landing field.\n"
+     "– /route – route, a .cup file; order in the file = order of the route.\n"
+     "– /terrain – terrain data, .hgt tiles (may be in subfolders). N52E021.hgt = 52-53°N, 21-22°E.\n"
+     "– /maps – base maps for the TOPO screen, one folder per area (info.txt and z10.pak … z14.pak). Copy the whole "
+     "maps folder produced by the map tool.\n"
+     "– /logs – flights are saved here (.igc and .gpx).\n"
+     "– /config.ini – settings, written by the device.\n"
+     "After changing files: Menu > System > Reload data from SD (or restart)."},
+
+    {"Maps and USB mode",
+     "Base maps are made on a computer from OpenStreetMap data (see README). Two ways to put them on the card:\n"
+     "– Remove the card and copy the maps folder with a card reader.\n"
+     "– Or without removing it: Menu > System > USB mode – SD card as a drive. Connect a USB-C cable to the "
+     "computer – the card appears as a drive. Copy the files, then eject the drive on the computer. The device "
+     "returns to normal operation and reloads the data. Return without ejecting: KEY or BOOT long – but first wait "
+     "until the computer has finished copying.\n"
+     "In USB mode the flight log is closed and the phone cannot upload files. Not available in flight.\n"
+     "Several areas on the card: the device picks the one that covers your position (the most detailed)."},
+
+    {"Takeoff, landing, logging",
+     "– Takeoff is detected automatically: ground speed above 15 km/h for 10 s. The position before takeoff becomes "
+     "HOME. Flight logging, flight time and the fuel counter start.\n"
+     "– HOME can be set manually: Menu > Flight > Set HOME here.\n"
+     "– Landing: ground speed below 5 km/h for 60 s. The log is closed and a flight summary is shown.\n"
+     "– The altimeter calibrates itself on the ground once at least 6 satellites are received (Menu > Altimeter).\n"
+     "– Power off (both buttons 3 s or menu) also closes and saves the flight."},
+};
+
+const std::vector<HelpTopic>& helpTopics() { return nav::langEn() ? kTopicsEn : kTopicsPl; }
 
 }  // namespace ui

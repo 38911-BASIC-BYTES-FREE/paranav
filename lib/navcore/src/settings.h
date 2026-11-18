@@ -6,6 +6,7 @@ namespace nav {
 
 struct Settings {
     // pilot / logger
+    std::string lang = "pl";      // user interface language: pl | en
     std::string pilot = "Pilot";
     std::string glider = "Paramotor";
     std::string gliderId = "";
@@ -45,6 +46,14 @@ struct Settings {
     int backlightPct = 60;        // front light brightness when switched on
     int backlightOffMin = 0;
     bool blueflyEnabled = true;   // look for a BlueFlyVario over Bluetooth
+    // FANET (LoRa 868 MHz): other paragliders / hang gliders around
+    bool fanetEnabled = true;     // radio on (receive)
+    bool fanetTx = true;          // transmit own position
+    bool fanetOnline = true;      // "online tracking" bit: may be shown on the internet via OGN
+    int fanetId = 0;              // own 16-bit id (0 = not yet generated)
+    bool trafficAlarm = true;     // collision warnings
+    float trafficWarnM = 300.f;   // caution distance (alarm at half)
+    float trafficVertM = 100.f;   // caution height difference (alarm at half)
     bool phoneEnabled = true;     // accept file uploads from the Android app over Bluetooth      // switch front light off automatically after N minutes (0 = never)
 
     bool load(const char* path);

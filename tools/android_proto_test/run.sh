@@ -16,6 +16,6 @@ for i in range(800):
 open('/tmp/proto_test/big.txt','w').write("\n".join(out)+"\n")
 PY
 javac -d /tmp/proto_test android/app/src/main/java/pl/paranav/uploader/Link.java \
-  android/app/src/main/java/pl/paranav/uploader/Proto.java android/app/src/main/java/pl/paranav/uploader/Uploader.java \
+  android/app/src/main/java/pl/paranav/uploader/Proto.java android/app/src/main/java/pl/paranav/uploader/Uploader.java android/app/src/main/java/pl/paranav/uploader/Tr.java \
   tools/android_proto_test/ProtoTest.java
 java -cp /tmp/proto_test ProtoTest /tmp/xfer_sim /tmp/xfer_root /tmp/proto_test/big.txt sd_card

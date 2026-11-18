@@ -71,15 +71,15 @@ public class ProtoTest {
         check(Arrays.equals(air, Files.readAllBytes(Paths.get(root, "airspace", "Polska_strefy_2026.txt"))),
                 "airspace file identical on the device");
 
-        byte[] wpt = Files.readAllBytes(Paths.get(sd, "waypoints", "PRZYKLAD_punkty.cup"));
+        byte[] wpt = Files.readAllBytes(Paths.get(sd, "waypoints", "EXAMPLE_waypoints.cup"));
         r = up.upload("waypoints", "punkty.cup", wpt, false, null);
         check(r.startsWith("OK END 4 waypoints/punkty.cup"), "waypoints -> " + r);
 
-        byte[] route = Files.readAllBytes(Paths.get(sd, "route", "trasa.cup"));
+        byte[] route = Files.readAllBytes(Paths.get(sd, "route", "example_route.cup"));
         r = up.upload("route", "trasa dnia.cup", route, true, null);
         check(r.startsWith("OK END 3 route/trasa_dnia.cup"), "route -> " + r);
 
-        byte[] act = "# z aplikacji\ndate=2026-11-16\nEPTR12 0800-1500\nEPTS05 0900-1100 1300-1600\n"
+        byte[] act = "# from the app\ndate=2026-11-16\nEPTR12 0800-1500\nEPTS05 0900-1100 1300-1600\n"
                 .getBytes(StandardCharsets.UTF_8);
         r = up.upload("activations", "activations.txt", act, true, null);
         check(r.startsWith("OK END 2 airspace/activations.txt"), "activations -> " + r);
@@ -93,7 +93,7 @@ public class ProtoTest {
         check(Files.exists(Paths.get(root, "airspace", "Polska_strefy_2026.txt")), "good file kept after a bad upload");
 
         // the last packet of a file is lost: no later packet reveals the gap -> timeout + resend of the window
-        byte[] wpt2 = Files.readAllBytes(Paths.get(sd, "waypoints", "PRZYKLAD_punkty.cup"));
+        byte[] wpt2 = Files.readAllBytes(Paths.get(sd, "waypoints", "EXAMPLE_waypoints.cup"));
         PipeLink exact = link;
         int before = exact.dataCount;
         exact.dropAt = before + 2;  // 337 B / 240 B per packet = 2 packets: drop the 2nd (last) one

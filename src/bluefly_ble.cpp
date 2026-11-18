@@ -1,4 +1,5 @@
 #include "bluefly_ble.h"
+#include "i18n.h"
 #include "phone_ble.h"
 
 #include <NimBLEDevice.h>
@@ -98,7 +99,7 @@ static bool startStack() {
     Serial.printf("[bluefly] internal RAM free %u B, largest block %u B\n", (unsigned)freeInt, (unsigned)largest);
     if (freeInt < kMinFreeInternal || largest < kMinLargestBlock) {
         char b[64];
-        snprintf(b, sizeof b, "za mało RAM (%u kB)", (unsigned)(freeInt / 1024));
+        snprintf(b, sizeof b, TR("za mało RAM (%u kB)", "not enough RAM (%u kB)"), (unsigned)(freeInt / 1024));
         setError(b);
         return false;
     }
@@ -201,7 +202,7 @@ void begin(bool on) {
     if (on && crashed && gBtInitGuard == kGuard) {
         // the previous run died while starting Bluetooth: keep it off this time
         st.state = State::Error;
-        st.error = "błąd startu Bluetooth – wyłączony";
+        st.error = TR("błąd startu Bluetooth – wyłączony", "Bluetooth start failed – disabled");
         Serial.println("[bluefly] previous crash during Bluetooth start - Bluetooth disabled for this run");
     }
     gBtInitGuard = 0;

@@ -1,4 +1,5 @@
 #include "menu.h"
+#include "../i18n.h"
 
 #include <algorithm>
 #include <cmath>
@@ -80,7 +81,7 @@ int Menu::pages() const { return (int)pageStart_.size(); }
 void Menu::drawText(Canvas& c) const {
     c.fillRect(0, 0, W, H, WHITE);
     c.fillRect(0, 0, W, 40, BLACK);
-    c.text(12, 30, "POMOC › " + textTitle_, font_sb, WHITE);
+    c.text(12, 30, TR("POMOC › ", "HELP › ") + textTitle_, font_sb, WHITE);
     char b[24];
     std::snprintf(b, sizeof b, "%d / %d", page_ + 1, pages());
     c.text(W - 12, 30, b, font_sb, WHITE, RIGHT);
@@ -92,7 +93,7 @@ void Menu::drawText(Canvas& c) const {
     }
     c.fillRect(0, H - 34, W, 34, WHITE);
     c.hline(0, H - 34, W, BLACK);
-    c.text(12, H - 9, "KLAWISZ: następna strona   BOOT: poprzednia   przytrzymaj: powrót", font_s, BLACK);
+    c.text(12, H - 9, TR("KLAWISZ: następna strona   BOOT: poprzednia   przytrzymaj: powrót", "KEY: next page   BOOT: previous   hold: back"), font_s, BLACK);
 }
 
 void Menu::open(std::shared_ptr<MenuItem> root) {
@@ -110,8 +111,8 @@ std::string Menu::describe() const {
     const Level& l = stack_.back();
     const auto& ch = l.item->children;
     if (l.sel >= 0 && l.sel < (int)ch.size()) s += ">[" + ch[l.sel].label + "]";
-    if (editing_) s += " edycja";
-    if (viewing_) s += " pomoc str." + std::to_string(page_ + 1);
+    if (editing_) s += TR(" edycja", " edit");
+    if (viewing_) s += TR(" pomoc str.", " help p.") + std::to_string(page_ + 1);
     return s;
 }
 
@@ -252,7 +253,7 @@ void Menu::draw(Canvas& c) const {
     for (size_t i = 1; i < stack_.size(); i++) title += " › " + stack_[i].item->label;
     c.fillRect(0, 0, W, 40, BLACK);
     c.text(12, 30, title, font_sb, WHITE);
-    c.text(W - 12, 30, "◄ wstecz", font_sb, WHITE, RIGHT);
+    c.text(W - 12, 30, TR("◄ wstecz", "◄ back"), font_sb, WHITE, RIGHT);
 
     const Level& l = stack_.back();
     const auto& items = cur()->children;
@@ -261,10 +262,10 @@ void Menu::draw(Canvas& c) const {
         c.text(W / 2, 120, it.label, font_m, BLACK, CENTER);
         c.text(W / 2, 250, fmtNum(it, editVal_), font_xl, BLACK, CENTER);
         c.rect(40, 310, 420, 70, BLACK, 3);
-        c.text(250, 358, "ANULUJ (BOOT długo)", font_sb, BLACK, CENTER);
+        c.text(250, 358, TR("ANULUJ (BOOT długo)", "CANCEL (BOOT long)"), font_sb, BLACK, CENTER);
         c.rect(500, 310, 420, 70, BLACK, 3);
         c.fillRect(500, 310, 420, 70, BLACK);
-        c.text(710, 358, "ZAPISZ (KLAWISZ długo)", font_sb, WHITE, CENTER);
+        c.text(710, 358, TR("ZAPISZ (KLAWISZ długo)", "SAVE (KEY long)"), font_sb, WHITE, CENTER);
         const char* bl[4] = {"– –", "–", "+", "+ +"};
         for (int i = 0; i < 4; i++) {
             c.rect(i * 240 + 10, 410, 220, 110, BLACK, 3);
@@ -304,7 +305,7 @@ void Menu::draw(Canvas& c) const {
     }
     c.fillRect(0, H - 34, W, 34, WHITE);
     c.hline(0, H - 34, W, BLACK);
-    c.text(12, H - 9, "KLAWISZ: dalej / przytrzymaj = wybierz     BOOT: wstecz / przytrzymaj = wyjdź", font_s, BLACK);
+    c.text(12, H - 9, TR("KLAWISZ: dalej / przytrzymaj = wybierz     BOOT: wstecz / przytrzymaj = wyjdź", "KEY: next / hold = select     BOOT: back / hold = exit"), font_s, BLACK);
 }
 
 }  // namespace ui

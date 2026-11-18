@@ -1,4 +1,5 @@
 #include "airspace.h"
+#include "i18n.h"
 #include "yield.h"
 
 #include <algorithm>
@@ -40,10 +41,10 @@ std::string AltLimit::label() const {
 
 const char* activationLabel(Activation a) {
     switch (a) {
-        case Activation::Permanent: return "STAŁA";
-        case Activation::Active: return "AKTYWNA";
-        case Activation::Inactive: return "NIEAKT.";
-        default: return "AKT.?";
+        case Activation::Permanent: return TR("STAŁA", "PERM.");
+        case Activation::Active: return TR("AKTYWNA", "ACTIVE");
+        case Activation::Inactive: return TR("NIEAKT.", "INACT.");
+        default: return TR("AKT.?", "ACT.?");
     }
 }
 

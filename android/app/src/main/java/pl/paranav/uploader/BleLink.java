@@ -63,7 +63,7 @@ public class BleLink implements Link {
     /** Finds a ParaNav device (by service UUID, falling back to the name). */
     public BluetoothDevice scan(long timeoutMs) throws IOException, InterruptedException {
         BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
-        if (scanner == null) throw new IOException("Bluetooth jest wyłączony");
+        if (scanner == null) throw new IOException(Tr.t("Bluetooth jest wyłączony", "Bluetooth is off"));
         final BluetoothDevice[] found = {null};
         final Semaphore done = new Semaphore(0);
         ScanCallback cb = new ScanCallback() {
@@ -98,7 +98,7 @@ public class BleLink implements Link {
             scanner.stopScan(cb);
         }
         synchronized (found) {
-            if (found[0] == null) throw new IOException("nie znaleziono ParaNav – czy Telefon (Bluetooth) jest włączony?");
+            if (found[0] == null) throw new IOException(Tr.t("nie znaleziono ParaNav – czy Telefon (Bluetooth) jest włączony?", "ParaNav not found – is Phone (Bluetooth) enabled on the device?"));
             return found[0];
         }
     }
@@ -168,39 +168,39 @@ public class BleLink implements Link {
     }
 
     private void await(String what, long ms) throws IOException, InterruptedException {
-        if (!opDone.tryAcquire(ms, TimeUnit.MILLISECONDS)) throw new IOException("przekroczony czas: " + what);
-        if (!connected) throw new IOException("rozłączono");
+        if (!opDone.tryAcquire(ms, TimeUnit.MILLISECONDS)) throw new IOException(Tr.t("przekroczony czas: ", "timeout: ") + what);
+        if (!connected) throw new IOException(Tr.t("rozłączono", "disconnected"));
     }
 
     public void connect(BluetoothDevice dev) throws IOException, InterruptedException {
         close();
         opDone.drainPermits();
         gatt = dev.connectGatt(ctx, false, callback, BluetoothDevice.TRANSPORT_LE);
-        if (gatt == null) throw new IOException("nie można połączyć");
-        await("połączenie", 15_000);
+        if (gatt == null) throw new IOException(Tr.t("nie można połączyć", "cannot connect"));
+        await(Tr.t("połączenie", "connection"), 15_000);
         gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
         if (gatt.requestMtu(247)) await("MTU", 5_000);
-        if (!gatt.discoverServices()) throw new IOException("nie można odczytać usług");
-        await("usługi", 10_000);
+        if (!gatt.discoverServices()) throw new IOException(Tr.t("nie można odczytać usług", "cannot read services"));
+        await(Tr.t("usługi", "services"), 10_000);
         BluetoothGattService svc = gatt.getService(Proto.SERVICE);
-        if (svc == null) throw new IOException("to urządzenie nie ma usługi ParaNav (stary firmware?)");
+        if (svc == null) throw new IOException(Tr.t("to urządzenie nie ma usługi ParaNav (stary firmware?)", "this device has no ParaNav service (old firmware?)"));
         ctrl = svc.getCharacteristic(Proto.CTRL);
         data = svc.getCharacteristic(Proto.DATA);
-        if (ctrl == null || data == null) throw new IOException("niekompletna usługa ParaNav");
+        if (ctrl == null || data == null) throw new IOException(Tr.t("niekompletna usługa ParaNav", "incomplete ParaNav service"));
         gatt.setCharacteristicNotification(ctrl, true);
         BluetoothGattDescriptor cccd = ctrl.getDescriptor(Proto.CCCD);
-        if (cccd == null) throw new IOException("brak powiadomień w usłudze");
+        if (cccd == null) throw new IOException(Tr.t("brak powiadomień w usłudze", "no notifications in the service"));
         writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        await("powiadomienia", 5_000);
+        await(Tr.t("powiadomienia", "notifications"), 5_000);
     }
 
     @SuppressWarnings("deprecation")
     private void writeDescriptor(BluetoothGattDescriptor d, byte[] v) throws IOException {
         if (Build.VERSION.SDK_INT >= 33) {
-            if (gatt.writeDescriptor(d, v) != BluetoothStatusCodes.SUCCESS) throw new IOException("zapis deskryptora");
+            if (gatt.writeDescriptor(d, v) != BluetoothStatusCodes.SUCCESS) throw new IOException(Tr.t("zapis deskryptora", "descriptor write"));
         } else {
             d.setValue(v);
-            if (!gatt.writeDescriptor(d)) throw new IOException("zapis deskryptora");
+            if (!gatt.writeDescriptor(d)) throw new IOException(Tr.t("zapis deskryptora", "descriptor write"));
         }
     }
 
@@ -219,7 +219,7 @@ public class BleLink implements Link {
     // ------------------------------------------------------------------ Link
     @SuppressWarnings("deprecation")
     private void write(BluetoothGattCharacteristic c, byte[] v, int type) throws IOException, InterruptedException {
-        if (gatt == null || !connected) throw new IOException("brak połączenia");
+        if (gatt == null || !connected) throw new IOException(Tr.t("brak połączenia", "not connected"));
         opDone.drainPermits();
         for (int attempt = 0; ; attempt++) {
             boolean started;
@@ -231,11 +231,11 @@ public class BleLink implements Link {
                 started = gatt.writeCharacteristic(c);
             }
             if (started) break;
-            if (attempt > 50) throw new IOException("Bluetooth zajęty");
+            if (attempt > 50) throw new IOException(Tr.t("Bluetooth zajęty", "Bluetooth busy"));
             Thread.sleep(10);  // stack busy: try again
         }
-        await("zapis", 5_000);
-        if (lastStatus != BluetoothGatt.GATT_SUCCESS) throw new IOException("błąd zapisu " + lastStatus);
+        await(Tr.t("zapis", "write"), 5_000);
+        if (lastStatus != BluetoothGatt.GATT_SUCCESS) throw new IOException(Tr.t("błąd zapisu ", "write error ") + lastStatus);
     }
 
     @Override

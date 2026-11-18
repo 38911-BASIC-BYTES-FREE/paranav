@@ -14,6 +14,8 @@
 #include "geo.h"
 #include "terrain.h"
 #include "topo.h"
+#include "i18n.h"
+#include "fanet.h"
 #include "ui/canvas.h"
 #include "ui/menu.h"
 #include "ui/screens.h"
@@ -36,6 +38,8 @@ static void savePgm(const std::string& path) {
 }
 
 int main(int argc, char** argv) {
+    if (const char* l = std::getenv("PARANAV_LANG"))
+        if (std::string(l) == "en") nav::setLang(nav::Lang::EN);
     std::string sd = argc > 1 ? argv[1] : "sd_card";
     std::string out = argc > 2 ? argv[2] : "/tmp/preview";
     std::string terrDir = argc > 3 ? argv[3] : "/tmp";
@@ -43,12 +47,12 @@ int main(int argc, char** argv) {
     Settings set;
     set.fuelStartL = 8;
     AirspaceDb asp;
-    int nz = asp.loadOpenAir((sd + "/airspace/PRZYKLAD_strefy.txt").c_str());
+    int nz = asp.loadOpenAir((sd + "/airspace/EXAMPLE_airspace.txt").c_str());
     int na = asp.loadActivations((sd + "/airspace/activations.txt").c_str());
     WaypointDb wp;
     wp.loadDir((sd + "/waypoints").c_str());
     Route route;
-    route.loadCup((sd + "/route/trasa.cup").c_str());
+    route.loadCup((sd + "/route/example_route.cup").c_str());
     Terrain terr;
     terr.setDir(terrDir);
     std::printf("zones %d act %d wpts %zu route %zu\n", nz, na, wp.all().size(), route.pts.size());
@@ -134,10 +138,10 @@ int main(int argc, char** argv) {
     std::printf("glide range 70: %.0f  250: %.0f\n", fc.glideRangeM(70), fc.glideRangeM(250));
     // alerts like the firmware would raise them
     if (!hits.empty() && hits[0].level == 2)
-        alerts.set(AL_AIRSPACE_IN, true, 1, "STREFA: " + asp.zones()[hits[0].idx].name, "jesteś w środku", hits[0].idx);
+        alerts.set(AL_AIRSPACE_IN, true, 1, TR("W STREFIE: ", "INSIDE: ") + asp.zones()[hits[0].idx].name, TR("jesteś w środku", "you are inside"), hits[0].idx);
     else if (!hits.empty() && hits[0].level == 1)
-        alerts.set(AL_AIRSPACE_NEAR, true, 1, "BLISKO: " + asp.zones()[hits[0].idx].name,
-                   "wlot za " + ui::fmtDur(hits[0].timeToEntryS, false), hits[0].idx);
+        alerts.set(AL_AIRSPACE_NEAR, true, 1, TR("STREFA: ", "AIRSPACE: ") + asp.zones()[hits[0].idx].name,
+                   TR("wlot za ", "entry in ") + ui::fmtDur(hits[0].timeToEntryS, false), hits[0].idx);
 
     ui::SysInfo sys;
     sys.battPct = 76; sys.battV = 3.94f; sys.battMa = -112; sys.battMinLeft = 540;
@@ -152,6 +156,34 @@ int main(int argc, char** argv) {
     ui::UiContext u;
     u.nav = &n; u.set = &set; u.asp = &asp; u.hits = &hits; u.wpts = &wp; u.route = &route;
     u.fc = &fc; u.terrain = &terr; u.alerts = &alerts; u.sys = &sys;
+    // FANET traffic around the simulated position
+    TrafficDb traffic;
+    {
+        struct T { uint32_t a; float brg, dist, dz, hdg, kmh, climb; const char* name; int age; bool ground; };
+        // hdg is relative to our track (180 = flying towards us)
+        T ts[] = {{0x011234, 40, 380, 25, 220, 38, 0.8f, "Ola Skytraxx", 1, false},
+                  {0x20ABCD, 300, 1800, -140, 90, 32, -1.2f, "Marek", 3, false},
+                  {0x110042, 160, 3900, 420, 10, 45, 2.5f, "", 25, false},
+                  {0xFD7777, 210, 1200, 0, 0, 0, 0, "Kierowca", 8, true}};
+        for (auto& t : ts) {
+            LatLon q = destination({n.lat, n.lon}, n.trackDeg + t.brg, t.dist);
+            FanetPacket p;
+            p.type = t.ground ? FT_GROUND : FT_TRACKING;
+            p.src = t.a; p.hasPos = true; p.lat = q.lat; p.lon = q.lon; p.altM = n.gpsAlt + t.dz;
+            p.headingDeg = (float)wrap360(n.trackDeg + t.hdg); p.speedKmh = t.kmh; p.climbMs = t.climb; p.aircraft = FA_PARAGLIDER;
+            traffic.onPacket(p, 100000 - t.age * 1000, -95);
+            if (*t.name) {
+                FanetPacket nm; nm.type = FT_NAME; nm.src = t.a; nm.name = t.name;
+                traffic.onPacket(nm, 100000, -95);
+            }
+        }
+        TrafficOwn me;
+        me.valid = true; me.flying = true; me.lat = n.lat; me.lon = n.lon; me.altM = n.gpsAlt;
+        me.speedKmh = n.gsKmh; me.trackDeg = n.trackDeg; me.climbMs = n.vario1s;
+        traffic.evaluate(me, 100000);
+    }
+    u.traffic = &traffic.list();
+    sys.fanetState = 2; sys.fanetId = "FD3C9A"; sys.fanetTxCount = 182; sys.fanetRxCount = 57;
     // background map: PARANAV_TOPO_DIR=<out>/maps from tools/topo/make_tiles.py
     TopoMap topo;
     TopoView tv;
@@ -182,11 +214,14 @@ int main(int argc, char** argv) {
         none.scan();
         u.topo = &none;
         ui::drawScreen(c, ui::SCR_TOPO, u);
-        savePgm(out + "/T_topo_brak.pgm");
+        savePgm(out + "/T_topo_nomap.pgm");
         u.topo = &topo;
     }
     ui::drawUsbDisk(c, u, true);
     savePgm(out + "/U_usb.pgm");
+    ui::drawScreen(c, ui::SCR_FLIGHT, u);
+    ui::drawTrafficHint(c, u);
+    savePgm(out + "/R_traffic_hint.pgm");
     // alert overlay example
     ui::drawScreen(c, ui::SCR_FLIGHT, u);
     int a = alerts.top();
@@ -196,17 +231,17 @@ int main(int argc, char** argv) {
     }
     // menu example
     auto root = std::make_shared<ui::MenuItem>(ui::MenuItem::sub("root", {
-        ui::MenuItem::sub("Lot", {}),
-        ui::MenuItem::sub("Paliwo", {}),
-        ui::MenuItem::sub("Wysokościomierz", {}),
-        ui::MenuItem::sub("Nawigacja", {}),
-        ui::MenuItem::sub("Mapa", {}),
-        ui::MenuItem::sub("Alarmy", {}),
+        ui::MenuItem::sub(TR("Lot", "Flight"), {}),
+        ui::MenuItem::sub(TR("Paliwo", "Fuel"), {}),
+        ui::MenuItem::sub(TR("Wysokościomierz", "Altimeter"), {}),
+        ui::MenuItem::sub(TR("Nawigacja", "Navigation"), {}),
+        ui::MenuItem::sub(TR("Ekran i mapa", "Display and map"), {}),
+        ui::MenuItem::sub(TR("Alarmy", "Alarms"), {}),
         ui::MenuItem::sub("System", {}),
     }));
     root->children[1].children = {
-        ui::MenuItem::num("Paliwo na starcie", [&] { return set.fuelStartL; }, [&](float v) { set.fuelStartL = v; }, 0, 30, 0.5f, 1, "l"),
-        ui::MenuItem::num("Zużycie", [&] { return set.fuelFlowLph; }, [&](float v) { set.fuelFlowLph = v; }, 0.5f, 15, 0.1f, 1, "l/h"),
+        ui::MenuItem::num(TR("Paliwo na starcie", "Fuel at takeoff"), [&] { return set.fuelStartL; }, [&](float v) { set.fuelStartL = v; }, 0, 30, 0.5f, 1, "l"),
+        ui::MenuItem::num(TR("Zużycie", "Fuel flow"), [&] { return set.fuelFlowLph; }, [&](float v) { set.fuelFlowLph = v; }, 0.5f, 15, 0.1f, 1, "l/h"),
     };
     ui::Menu m;
     m.open(root);
@@ -222,19 +257,19 @@ int main(int argc, char** argv) {
     ui::drawSummary(c, u);
     savePgm(out + "/A_summary.pgm");
     sys.phoneState = 3; sys.phoneProgress = 0.62f; sys.phoneFile = "openaip_airspace_pl.txt";
-    sys.phoneLast = "812 stref – airspace/openaip_airspace_pl.txt";
+    sys.phoneLast = TR("812 stref – airspace/openaip_airspace_pl.txt", "812 airspaces – airspace/openaip_airspace_pl.txt");
     ui::drawScreen(c, ui::SCR_FLIGHT, u);
     ui::drawTransferBanner(c, u);
-    savePgm(out + "/E_odbior.pgm");
+    savePgm(out + "/E_receiving.pgm");
     sys.phoneState = 2;
     ui::drawScreen(c, ui::SCR_SYSTEM, u);
-    savePgm(out + "/F_system_tel.pgm");
+    savePgm(out + "/F_system_phone.pgm");
     ui::drawScreen(c, ui::SCR_FLIGHT, u);
     ui::drawPowerHint(c);
     savePgm(out + "/C_power_hint.pgm");
-    ui::drawPowerOff(c, "WYŁĄCZONY", "Włączanie: przycisk PWR lub podłączenie USB");
+    ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"));
     savePgm(out + "/D_power_off.pgm");
-    ui::drawBoot(c, {"[OK] Wyświetlacz", "[OK] Barometr MS5611", "[OK] Karta SD", "[OK] Strefy: 4", "[..] GPS: szukam satelitów"}, "0.1");
+    ui::drawBoot(c, {TR("[OK] Wyświetlacz", "[OK] Display"), TR("[OK] Barometr MS5611", "[OK] Barometer MS5611"), TR("[OK] Karta SD", "[OK] SD card"), TR("[OK] Strefy: 4", "[OK] Airspace: 4"), TR("[..] GPS: szukam satelitów", "[..] GPS: searching for satellites")}, "0.4");
     savePgm(out + "/B_boot.pgm");
     return 0;
 }

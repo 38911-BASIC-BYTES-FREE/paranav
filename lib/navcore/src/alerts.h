@@ -6,7 +6,8 @@
 namespace nav {
 
 enum AlertId : uint8_t {
-    AL_AIRSPACE_IN = 0,  // inside active airspace
+    AL_TRAFFIC = 0,      // FANET: other aircraft on a collision course / very close
+    AL_AIRSPACE_IN,      // inside active airspace
     AL_FUEL_RETURN,      // fuel needed to return home exceeds fuel left
     AL_AIRSPACE_NEAR,    // approaching airspace (horizontal / vertical)
     AL_LOW_AGL,

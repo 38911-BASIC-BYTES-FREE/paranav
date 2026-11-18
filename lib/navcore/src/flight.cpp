@@ -1,4 +1,5 @@
 #include "flight.h"
+#include "i18n.h"
 
 #include <algorithm>
 
@@ -282,7 +283,7 @@ void FlightComputer::updateTarget() {
         case TargetKind::Home:
             if (st_.homeSet) {
                 st_.tgtValid = true;
-                st_.tgtName = "START";
+                st_.tgtName = TR("START", "HOME");
                 st_.tgtLat = st_.homeLat;
                 st_.tgtLon = st_.homeLon;
                 st_.tgtElev = st_.homeElev;
@@ -297,6 +298,13 @@ void FlightComputer::updateTarget() {
                 st_.tgtLon = w.lon;
                 st_.tgtElev = w.elevM;
             }
+            break;
+        case TargetKind::Point:
+            st_.tgtValid = true;
+            st_.tgtName = ptName_;
+            st_.tgtLat = ptLat_;
+            st_.tgtLon = ptLon_;
+            st_.tgtElev = NAN;
             break;
         case TargetKind::Landing:
             if (wpts_ && st_.fix) {
@@ -369,6 +377,17 @@ void FlightComputer::setTargetHome() { st_.tgtKind = TargetKind::Home; }
 void FlightComputer::setTargetWaypoint(int idx) {
     wptIdx_ = idx;
     st_.tgtKind = TargetKind::Waypoint;
+}
+void FlightComputer::setTargetPoint(const std::string& name, double lat, double lon) {
+    ptName_ = name;
+    ptLat_ = lat;
+    ptLon_ = lon;
+    st_.tgtKind = TargetKind::Point;
+    updateTarget();
+}
+void FlightComputer::updateTargetPoint(double lat, double lon) {
+    ptLat_ = lat;
+    ptLon_ = lon;
 }
 void FlightComputer::setTargetNearestLanding() { st_.tgtKind = TargetKind::Landing; }
 void FlightComputer::setTargetRoute(int idx) {

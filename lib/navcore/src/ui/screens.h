@@ -10,12 +10,13 @@
 #include "../settings.h"
 #include "../terrain.h"
 #include "../topo.h"
+#include "../fanet.h"
 #include "../waypoints.h"
 #include "canvas.h"
 
 namespace ui {
 
-enum ScreenId { SCR_FLIGHT = 0, SCR_MAP, SCR_TOPO, SCR_NAV, SCR_THERMAL, SCR_AIRSPACE, SCR_FUEL, SCR_SYSTEM, SCR_COUNT };
+enum ScreenId { SCR_FLIGHT = 0, SCR_MAP, SCR_TOPO, SCR_TRAFFIC, SCR_NAV, SCR_THERMAL, SCR_AIRSPACE, SCR_FUEL, SCR_SYSTEM, SCR_COUNT };
 const char* screenName(ScreenId s);
 
 struct SysInfo {
@@ -47,6 +48,12 @@ struct SysInfo {
     int topoAreas = 0;            // background map areas on the SD card (/maps)
     std::string topoArea;         // area shown on the TOPO screen
     bool usbDisk = false;         // SD card handed over to the PC (USB mass storage)
+    // FANET radio
+    int fanetState = 0;           // 0 off, 1 receiving, 2 receiving + transmitting, 3 error
+    std::string fanetErr, fanetId;
+    uint32_t fanetTxCount = 0, fanetRxCount = 0;
+    int fanetRssi = 0;
+    bool fanetOnline = true;
     std::string gpsModule = "?";
     bool baroOk = false;
     bool recording = false;
@@ -69,6 +76,7 @@ struct UiContext {
     nav::Terrain* terrain = nullptr;
     nav::TopoMap* topo = nullptr;     // background map tiles (may be null)
     nav::TopoView* topoView = nullptr;  // TOPO screen view state (kept between frames)
+    const std::vector<nav::Traffic>* traffic = nullptr;  // FANET aircraft around (sorted: threat, distance)
     const nav::AlertManager* alerts = nullptr;
     const SysInfo* sys = nullptr;
 };
@@ -87,6 +95,10 @@ enum FuelButton { FB_NONE = -1, FB_MINUS = 0, FB_PLUS, FB_FULL, FB_ENGINE };
 FuelButton fuelButtonAt(int x, int y);
 // TOPO screen: touch zone -> +1 zoom in, -1 zoom out, 0 = not a zoom zone
 int topoZoomTapAt(int x, int y);
+// RUCH screen: row of the traffic list at (x, y) -> index into u.traffic, or -1
+int trafficRowAt(const UiContext& u, int x, int y);
+// Compact "traffic nearby" box drawn over any other screen (caution level)
+void drawTrafficHint(Canvas& c, const UiContext& u);
 // USB disk mode screen
 void drawUsbDisk(Canvas& c, const UiContext& u, bool hostConnected);
 

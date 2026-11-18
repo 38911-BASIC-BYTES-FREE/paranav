@@ -69,23 +69,23 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, pad, pad, pad);
 
-        TextView title = text("ParaNav – przesyłanie plików", 22, true);
+        TextView title = text(Tr.t("ParaNav – przesyłanie plików", "ParaNav – file upload"), 22, true);
         root.addView(title);
-        status = text("Nie połączono", 16, false);
+        status = text(Tr.t("Nie połączono", "Not connected"), 16, false);
         root.addView(status);
-        connectBtn = button("Połącz z ParaNav", v -> toggleConnection());
+        connectBtn = button(Tr.t("Połącz z ParaNav", "Connect to ParaNav"), v -> toggleConnection());
         root.addView(connectBtn);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setMax(1000);
         root.addView(progress);
 
-        root.addView(section("Strefy (OpenAir, plik .txt)"));
-        replAirspace = check("Zastąp poprzednie strefy", true);
+        root.addView(section(Tr.t("Strefy (OpenAir, plik .txt)", "Airspace (OpenAir, .txt file)")));
+        replAirspace = check(Tr.t("Zastąp poprzednie strefy", "Replace previous airspace"), true);
         root.addView(replAirspace);
-        root.addView(guarded(button("Wybierz plik stref i wyślij", v -> pick(REQ_FILE_AIRSPACE))));
+        root.addView(guarded(button(Tr.t("Wybierz plik stref i wyślij", "Choose airspace file and send"), v -> pick(REQ_FILE_AIRSPACE))));
 
-        root.addView(section("Aktywacje stref na dziś (AUP)"));
-        root.addView(text("Jedna strefa w linii, czas UTC, np.  EPTR12 0800-1500  (kilka przedziałów po spacji).", 13, false));
+        root.addView(section(Tr.t("Aktywacje stref na dziś (AUP)", "Today's airspace activations (AUP)")));
+        root.addView(text(Tr.t("Jedna strefa w linii, czas UTC, np.  EPTR12 0800-1500  (kilka przedziałów po spacji).", "One airspace per line, UTC, e.g.  EPTR12 0800-1500  (several intervals separated by spaces)."), 13, false));
         activations = new EditText(this);
         activations.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
@@ -94,22 +94,22 @@ public class MainActivity extends Activity {
         activations.setTypeface(Typeface.MONOSPACE);
         activations.setHint("EPTR12 0800-1500");
         root.addView(activations);
-        root.addView(guarded(button("Wyślij aktywacje", v -> sendActivations())));
+        root.addView(guarded(button(Tr.t("Wyślij aktywacje", "Send activations"), v -> sendActivations())));
 
-        root.addView(section("Punkty (SeeYou .cup)"));
-        replWaypoints = check("Zastąp poprzednie punkty", false);
+        root.addView(section(Tr.t("Punkty (SeeYou .cup)", "Waypoints (SeeYou .cup)")));
+        replWaypoints = check(Tr.t("Zastąp poprzednie punkty", "Replace previous waypoints"), false);
         root.addView(replWaypoints);
-        root.addView(guarded(button("Wybierz plik punktów i wyślij", v -> pick(REQ_FILE_WAYPOINTS))));
+        root.addView(guarded(button(Tr.t("Wybierz plik punktów i wyślij", "Choose waypoint file and send"), v -> pick(REQ_FILE_WAYPOINTS))));
 
-        root.addView(section("Trasa (SeeYou .cup, kolejność punktów = trasa)"));
-        replRoute = check("Zastąp poprzednią trasę", true);
+        root.addView(section(Tr.t("Trasa (SeeYou .cup, kolejność punktów = trasa)", "Route (SeeYou .cup, point order = route)")));
+        replRoute = check(Tr.t("Zastąp poprzednią trasę", "Replace previous route"), true);
         root.addView(replRoute);
-        root.addView(guarded(button("Wybierz plik trasy i wyślij", v -> pick(REQ_FILE_ROUTE))));
+        root.addView(guarded(button(Tr.t("Wybierz plik trasy i wyślij", "Choose route file and send"), v -> pick(REQ_FILE_ROUTE))));
 
-        root.addView(section("Pliki w urządzeniu"));
-        root.addView(guarded(button("Pokaż / usuń pliki", v -> listFiles())));
+        root.addView(section(Tr.t("Pliki w urządzeniu", "Files on the device")));
+        root.addView(guarded(button(Tr.t("Pokaż / usuń pliki", "Show / delete files"), v -> listFiles())));
 
-        root.addView(section("Dziennik"));
+        root.addView(section(Tr.t("Dziennik", "Log")));
         log = text("", 13, false);
         log.setTypeface(Typeface.MONOSPACE);
         root.addView(log);
@@ -177,9 +177,9 @@ public class MainActivity extends Activity {
 
     private void setConnected(boolean c) {
         runOnUiThread(() -> {
-            connectBtn.setText(c ? "Rozłącz" : "Połącz z ParaNav");
+            connectBtn.setText(c ? Tr.t("Rozłącz", "Disconnect") : Tr.t("Połącz z ParaNav", "Connect to ParaNav"));
             for (View v : needConnection) v.setEnabled(c);
-            if (!c) status.setText("Nie połączono");
+            if (!c) status.setText(Tr.t("Nie połączono", "Not connected"));
         });
     }
 
@@ -211,7 +211,7 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         for (int r : results)
             if (r != PackageManager.PERMISSION_GRANTED) {
-                logLine("Bez uprawnień Bluetooth aplikacja nie połączy się z ParaNav.");
+                logLine(Tr.t("Bez uprawnień Bluetooth aplikacja nie połączy się z ParaNav.", "Without Bluetooth permissions the app cannot connect to ParaNav."));
                 return;
             }
     }
@@ -222,12 +222,12 @@ public class MainActivity extends Activity {
             worker.execute(() -> {
                 link.close();
                 setConnected(false);
-                logLine("Rozłączono.");
+                logLine(Tr.t("Rozłączono.", "Disconnected."));
             });
             return;
         }
         if (adapter == null) {
-            logLine("Ten telefon nie ma Bluetooth.");
+            logLine(Tr.t("Ten telefon nie ma Bluetooth.", "This phone has no Bluetooth."));
             return;
         }
         if (!ensurePermissions()) return;
@@ -235,30 +235,30 @@ public class MainActivity extends Activity {
             try {
                 startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQ_BT_ON);
             } catch (SecurityException e) {
-                logLine("Włącz Bluetooth w ustawieniach telefonu.");
+                logLine(Tr.t("Włącz Bluetooth w ustawieniach telefonu.", "Turn on Bluetooth in the phone settings."));
             }
             return;
         }
         setBusy(true);
         worker.execute(() -> {
             try {
-                setStatus("Szukam ParaNav…");
+                setStatus(Tr.t("Szukam ParaNav…", "Looking for ParaNav…"));
                 link = new BleLink(this, adapter, () -> {
                     setConnected(false);
-                    logLine("Połączenie przerwane.");
+                    logLine(Tr.t("Połączenie przerwane.", "Connection lost."));
                 });
                 BluetoothDevice d = link.scan(12_000);
-                setStatus("Łączę…");
+                setStatus(Tr.t("Łączę…", "Connecting…"));
                 link.connect(d);
                 uploader = new Uploader(link);
                 String hello = uploader.hello();
-                setStatus("Połączono: " + hello.replace("PARANAV 1", "ParaNav, firmware"));
-                logLine("Połączono (pakiet " + link.maxPacket() + " B).");
+                setStatus(Tr.t("Połączono: ", "Connected: ") + hello.replace("PARANAV 1", "ParaNav, firmware"));
+                logLine(Tr.t("Połączono (pakiet ", "Connected (packet ") + link.maxPacket() + " B).");
                 setConnected(true);
             } catch (Exception e) {
                 if (link != null) link.close();
                 setConnected(false);
-                logLine("Błąd połączenia: " + e.getMessage());
+                logLine(Tr.t("Błąd połączenia: ", "Connection error: ") + e.getMessage());
             } finally {
                 setBusy(false);
             }
@@ -296,16 +296,16 @@ public class MainActivity extends Activity {
             String warn = checkContent(kind, name, bytes);
             if (warn != null) {
                 new AlertDialog.Builder(this)
-                        .setTitle("Czy to właściwy plik?")
+                        .setTitle(Tr.t("Czy to właściwy plik?", "Is this the right file?"))
                         .setMessage(warn)
-                        .setPositiveButton("Wyślij mimo to", (d, w) -> send(kind, name, bytes, replace))
-                        .setNegativeButton("Anuluj", null)
+                        .setPositiveButton(Tr.t("Wyślij mimo to", "Send anyway"), (d, w) -> send(kind, name, bytes, replace))
+                        .setNegativeButton(Tr.t("Anuluj", "Cancel"), null)
                         .show();
             } else {
                 send(kind, name, bytes, replace);
             }
         } catch (IOException e) {
-            logLine("Nie mogę odczytać pliku: " + e.getMessage());
+            logLine(Tr.t("Nie mogę odczytać pliku: ", "Cannot read the file: ") + e.getMessage());
         }
     }
 
@@ -315,18 +315,18 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
         }
         String s = uri.getLastPathSegment();
-        return s != null ? s : "plik";
+        return s != null ? s : Tr.t("plik", "file");
     }
 
     private byte[] readAll(Uri uri) throws IOException {
         try (InputStream in = getContentResolver().openInputStream(uri)) {
-            if (in == null) throw new IOException("brak danych");
+            if (in == null) throw new IOException(Tr.t("brak danych", "no data"));
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[16384];
             int n;
             while ((n = in.read(buf)) > 0) {
                 out.write(buf, 0, n);
-                if (out.size() > Proto.MAX_FILE_SIZE) throw new IOException("plik większy niż 8 MB");
+                if (out.size() > Proto.MAX_FILE_SIZE) throw new IOException(Tr.t("plik większy niż 8 MB", "file larger than 8 MB"));
             }
             return out.toByteArray();
         }
@@ -337,17 +337,17 @@ public class MainActivity extends Activity {
         String head = new String(bytes, 0, Math.min(bytes.length, 20000), StandardCharsets.ISO_8859_1);
         if (Proto.KIND_AIRSPACE.equals(kind)) {
             if (!Pattern.compile("(?m)^\\s*AC\\s").matcher(head).find())
-                return name + " nie wygląda na plik OpenAir (brak linii \"AC ...\").";
+                return name + Tr.t(" nie wygląda na plik OpenAir (brak linii \"AC ...\").", " does not look like an OpenAir file (no \"AC ...\" lines).");
         } else {
             if (!Pattern.compile("\\d{4}\\.\\d{3}[NS]\\s*,\\s*\\d{5}\\.\\d{3}[EW]").matcher(head).find())
-                return name + " nie wygląda na plik SeeYou .cup (brak współrzędnych typu 5212.345N,02101.234E).";
+                return name + Tr.t(" nie wygląda na plik SeeYou .cup (brak współrzędnych typu 5212.345N,02101.234E).", " does not look like a SeeYou .cup file (no coordinates like 5212.345N,02101.234E).");
         }
         return null;
     }
 
     private void send(String kind, String name, byte[] bytes, boolean replace) {
         setBusy(true);
-        logLine("Wysyłam " + name + " (" + (bytes.length / 1024) + " kB)…");
+        logLine(Tr.t("Wysyłam ", "Sending ") + name + " (" + (bytes.length / 1024) + " kB)…");
         worker.execute(() -> {
             long t0 = System.currentTimeMillis();
             try {
@@ -359,7 +359,7 @@ public class MainActivity extends Activity {
                 double s = (System.currentTimeMillis() - t0) / 1000.0;
                 logLine(String.format(Locale.ROOT, "OK: %s – %s %s (%.0f s)", path, count, unit(kind), s));
             } catch (Exception e) {
-                logLine("Błąd: " + e.getMessage());
+                logLine(Tr.t("Błąd: ", "Error: ") + e.getMessage());
             } finally {
                 setProgress(0, 0);
                 setBusy(false);
@@ -369,9 +369,9 @@ public class MainActivity extends Activity {
 
     private static String unit(String kind) {
         switch (kind) {
-            case Proto.KIND_AIRSPACE: return "stref";
-            case Proto.KIND_ACTIVATIONS: return "aktywacji";
-            default: return "punktów";
+            case Proto.KIND_AIRSPACE: return Tr.t("stref", "airspaces");
+            case Proto.KIND_ACTIVATIONS: return Tr.t("aktywacji", "activations");
+            default: return Tr.t("punktów", "waypoints");
         }
     }
 
@@ -383,13 +383,13 @@ public class MainActivity extends Activity {
         StringBuilder sb = new StringBuilder();
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
         df.setTimeZone(TimeZone.getTimeZone("UTC"));
-        sb.append("# z aplikacji ParaNav\n").append("date=").append(df.format(new Date())).append('\n');
+        sb.append(Tr.t("# z aplikacji ParaNav\n", "# from the ParaNav app\n")).append("date=").append(df.format(new Date())).append('\n');
         int n = 0;
         for (String l : lines) {
             String t = l.trim().replaceAll("\\s+", " ");
             if (t.isEmpty()) continue;
             if (!ACT_LINE.matcher(t).matches()) {
-                logLine("Zła linia aktywacji: \"" + t + "\" – oczekiwane np. EPTR12 0800-1500");
+                logLine(Tr.t("Zła linia aktywacji: \"", "Bad activation line: \"") + t + Tr.t("\" – oczekiwane np. EPTR12 0800-1500", "\" – expected e.g. EPTR12 0800-1500"));
                 return;
             }
             sb.append(t).append('\n');
@@ -397,11 +397,11 @@ public class MainActivity extends Activity {
         }
         if (n == 0) {
             new AlertDialog.Builder(this)
-                    .setMessage("Brak wpisów. Wysłać pustą listę? Strefy aktywowane dziennie będą wtedy traktowane "
-                            + "jako NIEAKTYWNE przez cały dzień.")
-                    .setPositiveButton("Wyślij", (d, w) -> send(Proto.KIND_ACTIVATIONS, "activations.txt",
+                    .setMessage(Tr.t("Brak wpisów. Wysłać pustą listę? Strefy aktywowane dziennie będą wtedy traktowane ", "No entries. Send an empty list? Daily activated airspace will then be treated ")
+                            + Tr.t("jako NIEAKTYWNE przez cały dzień.", "as INACTIVE for the whole day."))
+                    .setPositiveButton(Tr.t("Wyślij", "Send"), (d, w) -> send(Proto.KIND_ACTIVATIONS, "activations.txt",
                             sb.toString().getBytes(StandardCharsets.UTF_8), true))
-                    .setNegativeButton("Anuluj", null)
+                    .setNegativeButton(Tr.t("Anuluj", "Cancel"), null)
                     .show();
             return;
         }
@@ -416,7 +416,7 @@ public class MainActivity extends Activity {
                 List<String> files = uploader.list();
                 runOnUiThread(() -> showFiles(files));
             } catch (Exception e) {
-                logLine("Błąd: " + e.getMessage());
+                logLine(Tr.t("Błąd: ", "Error: ") + e.getMessage());
             } finally {
                 setBusy(false);
             }
@@ -425,7 +425,7 @@ public class MainActivity extends Activity {
 
     private void showFiles(List<String> files) {
         if (files.isEmpty()) {
-            new AlertDialog.Builder(this).setMessage("Brak plików w urządzeniu.").setPositiveButton("OK", null).show();
+            new AlertDialog.Builder(this).setMessage(Tr.t("Brak plików w urządzeniu.", "No files on the device.")).setPositiveButton("OK", null).show();
             return;
         }
         String[] items = new String[files.size()];
@@ -436,18 +436,18 @@ public class MainActivity extends Activity {
             items[i] = (sp > 0 ? f.substring(0, sp) : f) + "  (" + Math.max(1, size / 1024) + " kB)";
         }
         new AlertDialog.Builder(this)
-                .setTitle("Dotknij pliku, aby go usunąć")
+                .setTitle(Tr.t("Dotknij pliku, aby go usunąć", "Tap a file to delete it"))
                 .setItems(items, (d, which) -> {
                     String f = files.get(which);
                     int sp = f.lastIndexOf(' ');
                     String path = sp > 0 ? f.substring(0, sp) : f;
                     new AlertDialog.Builder(this)
-                            .setMessage("Usunąć " + path + " z ParaNav?")
-                            .setPositiveButton("Usuń", (d2, w2) -> delete(path))
-                            .setNegativeButton("Anuluj", null)
+                            .setMessage(Tr.t("Usunąć ", "Delete ") + path + Tr.t(" z ParaNav?", " from ParaNav?"))
+                            .setPositiveButton(Tr.t("Usuń", "Delete"), (d2, w2) -> delete(path))
+                            .setNegativeButton(Tr.t("Anuluj", "Cancel"), null)
                             .show();
                 })
-                .setNegativeButton("Zamknij", null)
+                .setNegativeButton(Tr.t("Zamknij", "Close"), null)
                 .show();
     }
 
@@ -456,9 +456,9 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             try {
                 uploader.delete(path);
-                logLine("Usunięto " + path);
+                logLine(Tr.t("Usunięto ", "Deleted ") + path);
             } catch (Exception e) {
-                logLine("Błąd: " + e.getMessage());
+                logLine(Tr.t("Błąd: ", "Error: ") + e.getMessage());
             } finally {
                 setBusy(false);
             }

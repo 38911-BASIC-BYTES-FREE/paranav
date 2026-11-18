@@ -345,8 +345,8 @@ def build_sea(coast_lines, bbox_world):
         if water > land:
             sea.append(f)
     if ambiguous:
-        print(f"  UWAGA: {ambiguous} obszar(y) brzegu morza niejednoznaczne (przerwana linia brzegowa?) - "
-              f"pominięte. Dodaj sąsiedni plik .pbf, żeby linia brzegowa była ciągła.")
+        print(f"  WARNING: {ambiguous} coastal area(s) ambiguous (broken coastline?) - skipped. "
+              f"Add the neighbouring .pbf file so that the coastline is continuous.")
     return sea
 
 
@@ -374,7 +374,7 @@ class Fonts:
         self.bold = find_font(True) or self.reg
         self.cache = {}
         if not self.reg:
-            print("UWAGA: nie znaleziono czcionki TTF (DejaVuSans) - napisy będą bez polskich znaków")
+            print("WARNING: TTF font (DejaVuSans) not found - labels without accented letters")
 
     def get(self, size, bold=False):
         k = (size, bold)
@@ -808,14 +808,14 @@ def build(args):
     data = Data()
     for p in args.pbf:
         t = time.time()
-        print(f"Czytam {p} …", flush=True)
+        print(f"Reading {p} …", flush=True)
         n = read_pbf(p, data, bbox_world)
-        print(f"  {n} obiektów, {time.time() - t:.0f} s", flush=True)
+        print(f"  {n} objects, {time.time() - t:.0f} s", flush=True)
     print("  " + ", ".join(f"{k}={v}" for k, v in data.stats().items()), flush=True)
 
     sea = build_sea(data.lines["coast"], bbox_world)
     if sea:
-        print(f"  morze: {len(sea)} obszar(y)")
+        print(f"  sea: {len(sea)} area(s)")
     data.polys["water"].extend(sea)
 
     zooms = parse_zooms(args.zooms)
@@ -902,23 +902,23 @@ def build(args):
                 f.write(b)
         size = os.path.getsize(path)
         total_bytes += size
-        print(f"  z{z}: {stored} kafelków (+{dups} powtórzeń, {white} pustych), {size / 1e6:.1f} MB, "
+        print(f"  z{z}: {stored} tiles (+{dups} duplicates, {white} empty), {size / 1e6:.1f} MB, "
               f"{time.time() - tz:.0f} s", flush=True)
         if args.preview:
-            write_preview(path, os.path.join(args.out, f"podglad_{args.name}_z{z}.png"), cx, cy, args.preview_tiles)
+            write_preview(path, os.path.join(args.out, f"preview_{args.name}_z{z}.png"), cx, cy, args.preview_tiles)
 
     bb_lon0, bb_lat0 = world_lonlat(bbox_world[0], bbox_world[1])  # north-west corner
     bb_lon1, bb_lat1 = world_lonlat(bbox_world[2], bbox_world[3])  # south-east corner
     with open(os.path.join(out_dir, "info.txt"), "w", encoding="utf-8") as f:
-        f.write("# ParaNav - mapa podkładowa. Dane (c) OpenStreetMap contributors, ODbL\n")
+        f.write("# ParaNav - base map. Data (c) OpenStreetMap contributors, ODbL\n")
         f.write(f"format=1\nname={args.name}\ntitle={args.title or args.name}\n")
         f.write(f"center={lat0:.5f},{lon0:.5f}\nradius_km={args.radius_km:g}\n")
         f.write(f"bbox={bb_lat0:.5f},{bb_lon0:.5f},{bb_lat1:.5f},{bb_lon1:.5f}\n")
         f.write("zooms=" + ",".join(str(z) for z in zooms) + "\n")
         f.write(f"osm_date={args.osm_date or datetime.date.today().isoformat()}\n")
         f.write(f"generated={datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-    print(f"Gotowe: {out_dir}  ({total_bytes / 1e6:.1f} MB, {time.time() - t0:.0f} s)")
-    print("Skopiuj folder 'maps' na kartę SD (do katalogu głównego).")
+    print(f"Done: {out_dir}  ({total_bytes / 1e6:.1f} MB, {time.time() - t0:.0f} s)")
+    print("Copy the 'maps' folder to the root of the SD card.")
 
 
 def parse_zooms(s):
@@ -951,24 +951,24 @@ def write_preview(pak, png, cx, cy, ntiles):
                 continue
             img[j * TILE:(j + 1) * TILE, i * TILE:(i + 1) * TILE] = ~decode_tile(blob[o:o + L])
     Image.fromarray(np.where(img, 255, 0).astype(np.uint8)).save(png)
-    print(f"    podgląd: {png}")
+    print(f"    preview: {png}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="ParaNav: mapa podkładowa z OpenStreetMap (czarno-biała, e-papier)")
-    ap.add_argument("--pbf", action="append", required=True, help="plik .osm.pbf (można podać kilka razy)")
-    ap.add_argument("--name", required=True, help="krótka nazwa obszaru = nazwa folderu (a-z, 0-9, _)")
-    ap.add_argument("--title", default="", help="opis wyświetlany na urządzeniu")
-    ap.add_argument("--center", required=True, help="środek: szer,dł  np. 54.35,18.65")
+    ap = argparse.ArgumentParser(description="ParaNav: base map from OpenStreetMap (black and white, for e-paper)")
+    ap.add_argument("--pbf", action="append", required=True, help=".osm.pbf file (may be given several times)")
+    ap.add_argument("--name", required=True, help="short area name = folder name (a-z, 0-9, _)")
+    ap.add_argument("--title", default="", help="description shown on the device")
+    ap.add_argument("--center", required=True, help="centre: lat,lon  e.g. 54.35,18.65")
     ap.add_argument("--radius-km", type=float, default=100.0)
-    ap.add_argument("--zooms", default="10-14", help="np. 10-14 albo 10,12,14")
+    ap.add_argument("--zooms", default="10-14", help="e.g. 10-14 or 10,12,14")
     ap.add_argument("--out", default="out")
-    ap.add_argument("--osm-date", default="", help="data danych OSM do info.txt")
-    ap.add_argument("--preview", action="store_true", help="zapisz podglądy PNG wokół środka")
+    ap.add_argument("--osm-date", default="", help="OSM data date for info.txt")
+    ap.add_argument("--preview", action="store_true", help="write PNG previews around the centre")
     ap.add_argument("--preview-tiles", type=int, default=4)
     args = ap.parse_args()
     if not all(c.isalnum() or c == "_" for c in args.name) or len(args.name) > 24:
-        sys.exit("--name: tylko litery a-z, cyfry i _ (max 24 znaki)")
+        sys.exit("--name: letters a-z, digits and _ only (max 24 characters)")
     build(args)
 
 
