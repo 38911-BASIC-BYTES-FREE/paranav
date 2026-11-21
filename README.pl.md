@@ -35,6 +35,8 @@ ParaNav to komputer lotu do motoparalotni, zbudowany na gotowej płytce z dużym
 
 ## Funkcje – szczegóły (wersja 0.5.8)
 
+Zmiany w kolejnych wersjach: [Historia wersji](#historia-wersji).
+
 | Obszar | Co działa |
 |---|---|
 | Wysokość | baro (QNH, auto-kalibracja z GPS lub mapy terenu), nad startem, nad terenem (SRTM) |
@@ -357,6 +359,71 @@ Każde uruchomienie jest zapisywane w **`/logs/restarts.txt`** (powód restartu,
 Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchamia się w **trybie awaryjnym**: Bluetooth (BlueFly, telefon), FANET i mapy TOPO są wtedy wyłączone, żeby urządzenie dało się używać i zgrać raporty (np. w trybie USB). Po 5 minutach normalnej pracy kolejne uruchomienie jest już zwykłe.
 
 <p align="center"><img src="docs/screens/pl/B_boot.png" width="60%" alt="Ekran startowy – stan czujników i danych"><br><sub>Ekran startowy – stan czujników i danych</sub></p>
+
+## Historia wersji
+
+Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
+
+### 0.5.8 – 21.11
+* **Naprawione narastające spowolnienie** – po kilkunastu minutach pracy interfejs zwalniał (wolne przejścia między ekranami, opóźniona reakcja na przyciski i dotyk). Przyczyną była coraz bardziej poszatkowana pamięć PSRAM; krótkotrwałe obiekty trafiają teraz do pamięci wewnętrznej, a bufory rysowania są używane ponownie.
+* Ekran SYSTEM: liczba wolnych fragmentów PSRAM („fr”) i czas najwolniejszego rysowania („rys.”); co 10 s także log `[heap]` na porcie szeregowym.
+* Podpisy stref na ekranie MAPA rysują się na urządzeniu (wcześniej przepełnienie liczby na 32-bitowym ESP32).
+* Dokumentacja: plecki z komorą na GY-63 do druku 3D, schemat podłączenia GY-63, zrzuty ekranów w README.
+* Aplikacja 0.5.8 – bez zmian funkcji, numer wyrównany z firmware. GitHub: naprawione budowanie APK, nowy workflow „Release”.
+
+### 0.5.6 – 0.5.7 – 20.11
+* Tryb USB: po włączeniu urządzenie na chwilę rozłącza się z komputerem i łączy ponownie – system widzi włożoną kartę i pokazuje dysk (wcześniej dysk mógł się nie pojawić w Windows).
+* Ekran trybu USB jest rysowany, zanim komputer zacznie czytać kartę (pełne odświeżenie pod obciążeniem USB wychodziło blade); na czas trybu USB FANET i BlueFly są wyłączone (radio LoRa dzieli magistralę SPI z kartą).
+
+*Wersja 0.5.6 nie zachowała się jako osobne archiwum – jej zmiany są w 0.5.7.*
+
+### 0.5.4 – 0.5.5 – 20.11
+* **Wyjście ze strefy** – alarm W STREFIE z przyciskami WYPROWADŹ ZE STREFY / IGNORUJ i ekran WYJŚCIE z najszybszą drogą na zewnątrz: w poziomie, w górę albo w dół.
+* **Kontrola trasy** – po wybraniu lub aktywacji trasy lista stref, które przecina (z terenem pod trasą i dzisiejszym planem AUP); firmware odsyła do aplikacji liczbę kolizji.
+* Aplikacja 0.5.4 – sprawdza trasę względem stref jeszcze przed wysłaniem i pokazuje ostrzeżenie.
+* Ekran ładowania: czas do pełnego naładowania, pojemność baterii, stan ładowarki.
+* README: nowy wstęp „Co to jest i co potrafi”.
+
+*Wersja 0.5.4 nie zachowała się jako osobne archiwum – jej zmiany są w 0.5.5.*
+
+### 0.5.3 – 20.11
+* **Zasilanie USB** – pytanie NAWIGACJA / ŁADOWANIE / PLIKI po podłączeniu kabla i statyczny ekran ładowania.
+* Nowy wygląd: dane w „kartach” z zaokrąglonymi rogami, czarny pasek stanu, zaokrąglone paski ostrzeżeń, przyciski dotykowe z cieniem.
+* Menu, pomoc i podsumowanie lotu nie odświeżają się co sekundę; w menu można dotknąć pozycji, a długie listy mają przyciski ▲ / ▼.
+
+### 0.5.2 – 20.11
+* Barometr na kablu odporny na pełne odświeżanie ekranu: vario pomija odczyty w czasie odświeżenia i odrzuca nierealne skoki wysokości; licznik `F a/b` na ekranie SYSTEM.
+
+### 0.5.1 – 19.11
+* **Raporty restartów**: `/logs/restarts.txt` i `/logs/crash-NN.txt` (powód, stan tuż przed restartem, ostatnie czynności, ślad stosu).
+* **Tryb awaryjny** po 3 awariach z rzędu – bez Bluetooth, FANET i map, żeby dało się zgrać raporty.
+
+### 0.5 – 19.11
+* **Planowanie tras w aplikacji** – mapa OpenTopoMap ze strefami i punktami, dodawanie, przesuwanie i usuwanie punktów, „Moje trasy”, eksport i import `.cup`, wysyłanie jako aktywna trasa.
+* Wiele tras na karcie i menu „Wybierz trasę”; aktywna trasa narysowana na MAPIE i TOPO.
+* Punkty bez wysokości w `.cup` dostają wysokość z mapy terenu.
+
+### 0.4 – 18.11
+* Interfejs **po polsku i po angielsku** – firmware i aplikacja (Menu → Ekran i mapa → Język / Language); README i zrzuty ekranów w obu językach.
+* Przykładowe pliki na karcie SD z angielskimi nazwami (`EXAMPLE_airspace.txt`, `EXAMPLE_waypoints.cup`, `example_route.cup`).
+
+### 0.3 – 18.11
+* **FANET** (LoRa 868 MHz) – nadawanie własnej pozycji, inni piloci na MAPIE i TOPO, ekran RUCH z listą i radarem, ostrzeżenia o zbliżeniu, widoczność w OGN.
+
+### 0.2 – 17.11
+* **Ekran TOPO** – czarno-biała mapa topograficzna z OpenStreetMap (z10–z14), generator map `tools/topo` i workflow GitHub „Build map”.
+* **Tryb USB** – karta SD jako dysk w komputerze (USB-OTG, TinyUSB).
+
+### 0.1 – 16.11
+Pierwsza wersja i kilkanaście poprawek wydanych tego samego dnia:
+* podstawa: wysokość i vario (filtr Kalmana), wiatr, doskonałość, paliwo z alarmem WRACAJ, strefy OpenAir z planem AUP, nawigacja (Go Home, punkty, trasa), zapis IGC/GPX; ekrany LOT, MAPA, NAWIGACJA, TERMIKA, STREFY, PALIWO, SYSTEM,
+* wyłączanie dwoma przyciskami (3 s) i podświetlenie (oba przyciski krótko),
+* pomiar baterii przez BQ27220 z zapasowym odczytem z ładowarki BQ25896, skan I²C na ekranie SYSTEM,
+* kreskowanie stref na mapie zależne od klasy i wysokości,
+* pomoc w menu, mapa terenu SRTM (`/terrain`), automatyczne sprawdzanie układu ekranów (`layout_check`),
+* **BlueFlyVario** przez Bluetooth jako barometr; barometr na kablu można podłączyć w trakcie pracy,
+* **aplikacja na Androida** do wysyłania stref, aktywacji, punktów i tras przez Bluetooth (APK budowany na GitHubie),
+* stabilność: ślad ostatnich czynności po awarii, zabezpieczenie startu Bluetooth, dane stref w PSRAM, sterownik e-papieru odporny na błędy I²C, raport z awarii (core dump).
 
 ## Do sprawdzenia na sprzęcie (pierwsze uruchomienie)
 1. **Orientacja** – jeśli obraz jest do góry nogami: Menu → Ekran i mapa → Obróć ekran o 180°.

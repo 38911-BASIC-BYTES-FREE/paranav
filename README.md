@@ -35,6 +35,8 @@ ParaNav is a flight computer for paramotor pilots, built on an off-the-shelf boa
 
 ## Features in detail (version 0.5.8)
 
+Changes between versions: [Version history](#version-history).
+
 | Area | What works |
 |---|---|
 | Altitude | barometric (QNH, auto-calibration from GPS or terrain data), height above takeoff, AGL (SRTM terrain) |
@@ -357,6 +359,71 @@ Every start is logged in **`/logs/restarts.txt`** (reset reason, how long the pr
 After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **safe mode**: Bluetooth (BlueFly, phone), FANET and TOPO maps stay off for that run, so the device remains usable and the reports can be copied (e.g. in USB mode). The next start after 5 minutes of normal running is normal again.
 
 <p align="center"><img src="docs/screens/en/B_boot.png" width="60%" alt="Boot screen – sensors and data status"><br><sub>Boot screen – sensors and data status</sub></p>
+
+## Version history
+
+Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
+
+### 0.5.8 – 21 Nov
+* **Fixed the UI getting slower over time** – after 10–20 minutes screen changes and reactions to buttons and touch became slow. The cause was a more and more fragmented PSRAM heap; short-lived objects now use internal RAM and drawing buffers are reused.
+* SYSTEM screen: number of free PSRAM fragments ("fr") and the slowest redraw ("draw"); also a `[heap]` line on the serial port every 10 s.
+* Airspace labels on the MAP screen are drawn on the device (a number overflow on the 32-bit ESP32 hid them).
+* Documentation: 3D-printable back cover with a GY-63 compartment, GY-63 wiring diagram, screenshots in the README.
+* App 0.5.8 – no functional changes, version aligned with the firmware. GitHub: APK build fixed, new "Release" workflow.
+
+### 0.5.6 – 0.5.7 – 20 Nov
+* USB mode: when switched on, the device briefly disconnects from the computer and reconnects – the system sees the inserted card and shows the drive (before, the drive might not appear in Windows).
+* The USB mode screen is drawn before the computer starts reading the card (a full refresh under USB load came out faint); FANET and BlueFly are off while in USB mode (the LoRa radio shares the SPI bus with the card).
+
+*Version 0.5.6 was not kept as a separate archive – its changes are in 0.5.7.*
+
+### 0.5.4 – 0.5.5 – 20 Nov
+* **Airspace exit** – the INSIDE alert with LEAD ME OUT / IGNORE buttons and the EXIT screen with the fastest way out: horizontally, up or down.
+* **Route check** – after choosing or activating a route, the list of zones it crosses (using the terrain below the route and today's AUP); the firmware reports the number of conflicts to the app.
+* App 0.5.4 – checks the route against the airspace before sending and shows a warning.
+* Charging screen: time to full, battery capacity, charger state.
+* README: new introduction "What it is and what it does".
+
+*Version 0.5.4 was not kept as a separate archive – its changes are in 0.5.5.*
+
+### 0.5.3 – 20 Nov
+* **USB power** – NAVIGATION / CHARGING / FILES question when the cable is plugged in, and a static charging screen.
+* New look: data in rounded "cards", black status bar, rounded alert bars, touch buttons with a shadow.
+* Menu, help and the flight summary are not refreshed every second; menu items can be tapped and long lists have ▲ / ▼ buttons.
+
+### 0.5.2 – 20 Nov
+* Wired barometer immune to full screen refreshes: the vario skips samples during a refresh and rejects impossible altitude jumps; `F a/b` counter on the SYSTEM screen.
+
+### 0.5.1 – 19 Nov
+* **Restart reports**: `/logs/restarts.txt` and `/logs/crash-NN.txt` (reason, state just before the restart, last actions, stack trace).
+* **Safe mode** after 3 crashes in a row – no Bluetooth, FANET or maps, so the reports can be copied off.
+
+### 0.5 – 19 Nov
+* **Route planning in the app** – OpenTopoMap map with airspace and waypoints, adding, moving and deleting points, "My routes", `.cup` export and import, sending as the active route.
+* Several routes on the card and a "Choose route" menu; the active route is drawn on MAP and TOPO.
+* Points without an elevation in the `.cup` get it from the terrain data.
+
+### 0.4 – 18 Nov
+* **Polish and English** user interface – firmware and app (Menu → Display and map → Język / Language); README and screenshots in both languages.
+* Sample SD card files with English names (`EXAMPLE_airspace.txt`, `EXAMPLE_waypoints.cup`, `example_route.cup`).
+
+### 0.3 – 18 Nov
+* **FANET** (LoRa 868 MHz) – own position broadcast, other pilots on MAP and TOPO, TRAFFIC screen with a list and radar, proximity warnings, visibility in OGN.
+
+### 0.2 – 17 Nov
+* **TOPO screen** – black-and-white topographic map from OpenStreetMap (z10–z14), map generator `tools/topo` and the GitHub "Build map" workflow.
+* **USB mode** – the SD card as a drive on a computer (USB-OTG, TinyUSB).
+
+### 0.1 – 16 Nov
+The first version and a dozen fixes released the same day:
+* the basics: altitude and vario (Kalman filter), wind, glide ratio, fuel with the TURN BACK alert, OpenAir airspace with the AUP schedule, navigation (Go Home, waypoints, route), IGC/GPX logging; FLIGHT, MAP, NAV, THERMAL, AIRSPACE, FUEL and SYSTEM screens,
+* power off with both buttons (3 s) and the front light (both buttons short),
+* battery reading from the BQ27220 with a fallback to the BQ25896 charger, I²C scan on the SYSTEM screen,
+* airspace hatching on the map by class and altitude,
+* built-in help, SRTM terrain (`/terrain`), automatic screen layout check (`layout_check`),
+* **BlueFlyVario** over Bluetooth as the barometer; the wired barometer can be plugged in while running,
+* **Android app** to send airspace, activations, waypoints and routes over Bluetooth (APK built on GitHub),
+* stability: last actions shown after a crash, Bluetooth start guard, airspace data in PSRAM, e-paper driver tolerant of I²C errors, crash report (core dump).
 
 ## Things to check on the hardware (first start)
 1. **Orientation** – if the picture is upside down: Menu → Display and map → Rotate screen 180°.
