@@ -1,34 +1,34 @@
 # Builds a background map for the TOPO screen on GitHub's servers (nothing to install on your PC).
-# GitHub -> "Actions" -> "Zbuduj mapę" -> "Run workflow" -> fill in the form -> wait (~10-30 min)
+# GitHub -> "Actions" -> "Build map" -> "Run workflow" -> fill in the form -> wait (~10-30 min)
 # -> open the finished run -> download the "mapa-<name>" artifact (zip) -> unpack -> copy the
 # "maps" folder to the root of the SD card (card reader or ParaNav "Tryb USB").
 # Map data: (c) OpenStreetMap contributors, ODbL, downloaded from download.geofabrik.de.
-name: Zbuduj mapę
+name: Build map
 on:
   workflow_dispatch:
     inputs:
       name:
-        description: 'Nazwa obszaru (folder na karcie: a-z, 0-9, _)'
+        description: 'Area name (folder on the card: a-z, 0-9, _)'
         default: 'gdansk'
         required: true
       title:
-        description: 'Opis widoczny na urządzeniu'
+        description: 'Description shown on the device'
         default: 'Gdańsk 100 km'
         required: true
       center:
-        description: 'Środek: szerokość,długość (stopnie)'
+        description: 'Centre: latitude,longitude (degrees)'
         default: '54.35,18.65'
         required: true
       radius_km:
-        description: 'Promień w km'
+        description: 'Radius in km'
         default: '100'
         required: true
       zooms:
-        description: 'Poziomy mapy (10 = przegląd ... 14 = szczegóły)'
+        description: 'Map levels (10 = overview ... 14 = detail)'
         default: '10-14'
         required: true
       regions:
-        description: 'Pliki Geofabrik bez "-latest.osm.pbf", oddzielone przecinkami (muszą pokryć cały obszar!)'
+        description: 'Geofabrik files without "-latest.osm.pbf", comma separated (must cover the whole area!)'
         default: 'europe/poland/pomorskie,europe/poland/kujawsko-pomorskie,europe/poland/warminsko-mazurskie,russia/kaliningrad'
         required: true
 jobs:
@@ -64,7 +64,7 @@ jobs:
             --center "${{ inputs.center }}" --radius-km "${{ inputs.radius_km }}" \
             --zooms "${{ inputs.zooms }}" --osm-date "$(date +%Y-%m-%d)" \
             --out out --preview
-          cp tools/topo/CZYTAJ_mapy.txt out/ || true
+          cp tools/topo/README_maps.txt tools/topo/CZYTAJ_mapy.txt out/ || true
       - uses: actions/upload-artifact@v4
         with:
           name: mapa-${{ inputs.name }}

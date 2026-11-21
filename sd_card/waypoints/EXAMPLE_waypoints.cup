@@ -1,0 +1,5 @@
+name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+"Field Landing",LFLD,PL,5205.400N,02048.300E,110.0m,3,90,200m,,"example landing field"
+"Windmill",WMIL,PL,5208.100N,02053.500E,115.0m,1,,,,"turnpoint"
+"Church",CHUR,PL,5203.900N,02055.800E,120.0m,1,,,,""
+"Meadow Landing",LMEA,PL,5210.500N,02044.000E,105.0m,3,120,150m,,""

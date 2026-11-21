@@ -1,4 +1,5 @@
 #include "gps.h"
+#include "i18n.h"
 
 #include "config.h"
 
@@ -54,7 +55,7 @@ bool GpsModule::begin() {
         sendNmea("PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0");  // only GGA + RMC
         return true;
     }
-    name_ = "brak odpowiedzi";
+    name_ = TR("brak odpowiedzi", "no response");
     // keep listening at 38400 - the module might start later
     Serial1.end();
     Serial1.begin(38400, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);

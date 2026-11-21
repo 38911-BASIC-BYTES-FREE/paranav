@@ -53,6 +53,11 @@ public:
     void fillRect(int x, int y, int w, int h, uint8_t c, Pattern p = SOLID);
     void rect(int x, int y, int w, int h, uint8_t c, int t = 1);
     void invertRect(int x, int y, int w, int h);
+    // Rounded rectangles (radius r, clamped to half the shorter side). The straight edges of
+    // roundRect count as separator lines for the layout checker.
+    void roundRect(int x, int y, int w, int h, int r, uint8_t c, int t = 2);
+    void fillRoundRect(int x, int y, int w, int h, int r, uint8_t c, Pattern p = SOLID);
+    void invertRoundRect(int x, int y, int w, int h, int r);
     void line(int x0, int y0, int x1, int y1, uint8_t c, int t = 1, int dash = 0);
     void circle(int cx, int cy, int r, uint8_t c, int t = 1, int dash = 0);
     void fillCircle(int cx, int cy, int r, uint8_t c);

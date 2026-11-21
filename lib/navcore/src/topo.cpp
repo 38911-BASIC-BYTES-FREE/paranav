@@ -1,4 +1,5 @@
 #include "topo.h"
+#include "i18n.h"
 
 #include <dirent.h>
 
@@ -147,7 +148,7 @@ int TopoMap::scan() {
             FILE* t = std::fopen((a.dir + "/info.txt").c_str(), "r");
             if (t) {  // folder with info.txt we cannot understand
                 std::fclose(t);
-                fail("maps/" + n + ": zły info.txt");
+                fail("maps/" + n + TR(": zły info.txt", ": bad info.txt"));
             }
             continue;
         }
@@ -191,7 +192,7 @@ bool TopoMap::openPak(int area, int z) {
     uint8_t h[32];
     if (!pak_.f || std::fread(h, 1, 32, pak_.f) != 32 || std::memcmp(h, "PNMP", 4) != 0 || rd16(h + 4) != 1 ||
         h[6] != z) {
-        fail(areas_[area].name + fn + ": brak lub zły plik");
+        fail(areas_[area].name + fn + TR(": brak lub zły plik", ": missing or bad file"));
         if (pak_.f) std::fclose(pak_.f);
         pak_.f = nullptr;
         pak_.bad = true;
@@ -212,22 +213,22 @@ TopoTile TopoMap::load(int area, int z, int x, int y, uint8_t* out) {
     uint32_t idx = (uint32_t)(y - pak_.y0) * pak_.nx + (uint32_t)(x - pak_.x0);
     uint8_t e[8];
     if (std::fseek(pak_.f, (long)(32 + idx * 8), SEEK_SET) != 0 || std::fread(e, 1, 8, pak_.f) != 8) {
-        fail("odczyt indeksu mapy");
+        fail(TR("odczyt indeksu mapy", "map index read"));
         return TopoTile::Error;
     }
     uint32_t off = rd32(e), len = rd32(e + 4);
     if (len == 0) return off == 0xFFFFFFFFu ? TopoTile::NoData : TopoTile::White;
     if (len > 2 * kTopoTileBytes || off < pak_.dataOff) {
-        fail("uszkodzony indeks mapy");
+        fail(TR("uszkodzony indeks mapy", "damaged map index"));
         return TopoTile::Error;
     }
     rec_.resize(len);
     if (std::fseek(pak_.f, (long)off, SEEK_SET) != 0 || std::fread(rec_.data(), 1, len, pak_.f) != len) {
-        fail("odczyt kafelka mapy");
+        fail(TR("odczyt kafelka mapy", "map tile read"));
         return TopoTile::Error;
     }
     if (!topoDecodeTile(rec_.data(), len, out)) {
-        fail("uszkodzony kafelek mapy (CRC)");
+        fail(TR("uszkodzony kafelek mapy (CRC)", "damaged map tile (CRC)"));
         return TopoTile::Error;
     }
     return TopoTile::Ok;

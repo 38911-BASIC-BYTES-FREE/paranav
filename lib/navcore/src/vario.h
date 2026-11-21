@@ -22,6 +22,15 @@ public:
     }
     bool initialized() const { return init_; }
 
+    // Move the altitude to a new level but keep the climb rate (a persistent step in the sensor
+    // reading, e.g. after a rejected glitch turned out to be real).
+    void rebase(float alt) {
+        if (!init_) return reset(alt);
+        h_ = alt;
+        p00_ = 10;
+        p01_ = p10_ = 0;
+    }
+
     void update(float z, float dt) {
         if (!init_) {
             reset(z);

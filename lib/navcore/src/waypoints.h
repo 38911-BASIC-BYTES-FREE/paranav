@@ -33,10 +33,12 @@ private:
 };
 
 struct Route {
-    std::string name;
+    std::string name;  // file name
+    std::string path;
     std::vector<Waypoint> pts;
     int active = 0;
     int loadCup(const char* path);  // order of the file = order of route
+    float lengthM() const;           // sum of the legs
 };
 
 }  // namespace nav

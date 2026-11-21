@@ -6,6 +6,7 @@ namespace nav {
 
 struct Settings {
     // pilot / logger
+    std::string lang = "pl";      // user interface language: pl | en
     std::string pilot = "Pilot";
     std::string glider = "Paramotor";
     std::string gliderId = "";
@@ -31,6 +32,9 @@ struct Settings {
     float asVertWarnM = 100.f;    // vertical buffer to floor/ceiling
     std::string asIgnore = "G,W,FIR,UIR,GP";  // airspace classes to ignore (comma list)
     float lowAglWarnM = 0.f;      // 0 = disabled
+    float escClimbMs = 1.5f;      // airspace exit: climb rate you can hold [m/s]
+    float escSinkMs = 2.0f;       // airspace exit: sink rate you are willing to fly [m/s]
+    float routeCheckAglM = 1000.f;  // route check: zones with a floor below this height AGL count as conflicts
     int battWarnPct = 20;
     bool varioSound = false;      // no buzzer in v1 hardware
 
@@ -39,12 +43,21 @@ struct Settings {
     bool flip180 = false;         // rotate screen by 180 deg
     int mapScaleIdx = 2;          // index into map scale table
     bool mapNorthUp = false;
-    int topoZoom = 13;            // TOPO screen zoom level 10..14
+    int topoZoom = 13;
+    std::string routeFile;        // active route: file name in /route (empty = first file)            // TOPO screen zoom level 10..14
     int fullRefreshS = 60;        // full e-paper refresh period
     int vcomMv = 1560;            // e-paper VCOM (see sticker on panel ribbon)
     int backlightPct = 60;        // front light brightness when switched on
     int backlightOffMin = 0;
     bool blueflyEnabled = true;   // look for a BlueFlyVario over Bluetooth
+    // FANET (LoRa 868 MHz): other paragliders / hang gliders around
+    bool fanetEnabled = true;     // radio on (receive)
+    bool fanetTx = true;          // transmit own position
+    bool fanetOnline = true;      // "online tracking" bit: may be shown on the internet via OGN
+    int fanetId = 0;              // own 16-bit id (0 = not yet generated)
+    bool trafficAlarm = true;     // collision warnings
+    float trafficWarnM = 300.f;   // caution distance (alarm at half)
+    float trafficVertM = 100.f;   // caution height difference (alarm at half)
     bool phoneEnabled = true;     // accept file uploads from the Android app over Bluetooth      // switch front light off automatically after N minutes (0 = never)
 
     bool load(const char* path);

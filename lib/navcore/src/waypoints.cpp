@@ -1,5 +1,7 @@
 #include "waypoints.h"
 
+#include <cmath>
+
 #include <dirent.h>
 
 #include <cctype>
@@ -52,7 +54,8 @@ bool WaypointDb::parseLine(const std::string& line, Waypoint& w) {
     w.name = f[0];
     w.code = f[1];
     std::string e = f[5];
-    w.elevM = (float)std::atof(e.c_str());
+    // empty elevation (e.g. a route planned on a map) = unknown: filled from terrain data on the device
+    w.elevM = e.find_first_of("0123456789") == std::string::npos ? NAN : (float)std::atof(e.c_str());
     if (e.find("ft") != std::string::npos || e.find("FT") != std::string::npos) w.elevM *= kFt2M;
     w.style = f.size() > 6 ? std::atoi(f[6].c_str()) : 1;
     return true;
@@ -133,7 +136,14 @@ int Route::loadCup(const char* path) {
     std::fclose(f);
     const char* s = std::strrchr(path, '/');
     name = s ? s + 1 : path;
+    this->path = path;
     return n;
+}
+
+float Route::lengthM() const {
+    double d = 0;
+    for (size_t i = 1; i < pts.size(); i++) d += distanceM({pts[i - 1].lat, pts[i - 1].lon}, {pts[i].lat, pts[i].lon});
+    return (float)d;
 }
 
 }  // namespace nav

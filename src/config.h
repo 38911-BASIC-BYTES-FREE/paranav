@@ -2,7 +2,7 @@
 // Source: LilyGO repo docs/pinmap.md (schematic V1.0 24-12-24).
 #pragma once
 
-#define PARANAV_VERSION "0.2.0"
+#define PARANAV_VERSION "0.5.7"
 
 // Shared I2C bus (PCA9535, PCF8563, BQ27220, GT911, TPS65185, BQ25896 and the external MS5611 via QWIIC)
 #define PIN_I2C_SDA 39
@@ -17,7 +17,10 @@
 #define PIN_SPI_MISO 21
 #define PIN_SPI_MOSI 13
 #define PIN_SD_CS 12
-#define PIN_LORA_CS 46  // keep high (LoRa unused)
+#define PIN_LORA_CS 46    // SX1262 LoRa (FANET), shares SPI with the SD card
+#define PIN_LORA_IRQ 10   // DIO1
+#define PIN_LORA_RST 1
+#define PIN_LORA_BUSY 47
 
 // Touch GT911
 #define PIN_TOUCH_INT 3

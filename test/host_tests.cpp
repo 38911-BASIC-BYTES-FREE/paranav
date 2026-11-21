@@ -6,6 +6,7 @@
 #include <string>
 
 #include "airspace.h"
+#include "escape.h"
 #include "alerts.h"
 #include "bluefly.h"
 #include "filexfer.h"
@@ -16,6 +17,7 @@
 #include "settings.h"
 #include "terrain.h"
 #include "topo.h"
+#include "fanet.h"
 #include "vario.h"
 #include "waypoints.h"
 #include "wind.h"
@@ -95,6 +97,21 @@ static void testKalman() {
     }
     NEAR(kv.vario(), 2.0, 0.2);
     NEAR(kv.altitude(), h, 0.5);
+    // rebase: new level, climb rate kept, then tracking continues
+    kv.rebase(h + 5);
+    NEAR(kv.altitude(), h + 5, 0.01);
+    NEAR(kv.vario(), 2.0, 0.2);
+    for (int i = 0; i < 50 * 5; i++) {
+        h += 2.0f * 0.02f;
+        kv.update(h + 5, 0.02f);
+    }
+    NEAR(kv.vario(), 2.0, 0.1);
+    NEAR(kv.altitude(), h + 5, 0.2);
+    // a gap without samples (blanked e-paper refresh) is bridged with the last climb rate
+    h += 2.0f * 2.5f;
+    kv.update(h + 5, 2.5f);
+    NEAR(kv.vario(), 2.0, 0.1);
+    NEAR(kv.altitude(), h + 5, 0.2);
 }
 
 static void testWind() {
@@ -265,6 +282,19 @@ static void testLoggerAndCup() {
     NEAR(db.all()[0].lat, 52 + 5.4 / 60, 1e-9);
     NEAR(db.all()[1].elevM, 304.8, 0.01);
     CHECK(db.nearestLanding(52.2, 21.0) == 0);
+    // route planned in the phone app: empty elevation = unknown; route length
+    {
+        FILE* f = std::fopen("/tmp/pn_route.cup", "w");
+        std::fputs("name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc\n"
+                   "\"A\",A,,5400.000N,01800.000E,,1,,,,\n"
+                   "\"B\",B,,5401.000N,01800.000E,,3,,,,\n", f);
+        std::fclose(f);
+        Route r;
+        CHECK(r.loadCup("/tmp/pn_route.cup") == 2);
+        CHECK(std::isnan(r.pts[0].elevM) && r.pts[1].isLanding());
+        CHECK(r.name == "pn_route.cup" && r.path == "/tmp/pn_route.cup");
+        NEAR(r.lengthM(), 1853.0, 5.0);
+    }
 }
 
 static void testSettings() {
@@ -524,6 +554,20 @@ static void testFileXfer() {
     rx.onCtrl("END");
     CHECK(rx.takePending(p));
     CHECK(!FileReceiver::install("/tmp/pn_root", p, msg, count));
+    CHECK(!p.replace && !p.activate);
+    // flags: 2 = keep other routes, make this one active; 3 = replace + active
+    std::string rt = "name,code\n\"A\",A,,5400.000N,01800.000E,,1,,,,\n";
+    for (int fl : {2, 3}) {
+        std::snprintf(cmd, sizeof cmd, "BEGIN route %zu %08x %d plan.cup", rt.size(),
+                      crc32Update(0, (const uint8_t*)rt.data(), rt.size()), fl);
+        rx.onCtrl(cmd);
+        std::vector<uint8_t> rb(4 + rt.size(), 0);
+        std::memcpy(rb.data() + 4, rt.data(), rt.size());
+        rx.onData(rb.data(), rb.size());
+        rx.onCtrl("END");
+        CHECK(rx.takePending(p) && p.kind == "route" && p.activate && p.replace == (fl == 3));
+        CHECK(FileReceiver::install("/tmp/pn_root", p, msg, count) && msg == "route/plan.cup" && count == 1);
+    }
     // path safety
     out.clear();
     rx.onCtrl("DEL ../config.ini");
@@ -535,7 +579,7 @@ static void testFileXfer() {
     rx.onCtrl("BEGIN airspace 99999999 0 0 x.txt");
     CHECK(out.back() == "ERR SIZE");
     rx.onCtrl("LIST");
-    CHECK(out.back() == "OK LIST 2");
+    CHECK(out.back() == "OK LIST 3");  // airspace + activations + route/plan.cup
     CHECK(FileReceiver::sanitize("../../.hidden name!.TXT", ".txt") == "hidden_name.txt");
 }
 
@@ -632,7 +676,161 @@ static void testTopo() {
     }
 }
 
+// ---------------------------------------------------------------- FANET
+static void testFanet() {
+    using namespace nav;
+    FanetOwn o;
+    o.lat = 54.3521; o.lon = 18.6466; o.altM = 812; o.speedKmh = 47.5f; o.climbMs = -1.3f; o.headingDeg = 271;
+    o.aircraft = FA_PARAGLIDER; o.online = true;
+    uint8_t b[64];
+    size_t n = fanetEncodeTracking(b, sizeof b, 0xFD1A2B, o);
+    CHECK(n == 15);
+    CHECK(b[0] == 0x01 && b[1] == 0xFD && b[2] == 0x2B && b[3] == 0x1A);
+    FanetPacket p;
+    CHECK(fanetDecode(b, n, p));
+    CHECK(p.type == FT_TRACKING && p.src == 0xFD1A2B && p.online && p.aircraft == FA_PARAGLIDER);
+    CHECK(std::fabs(p.lat - o.lat) < 2e-5 && std::fabs(p.lon - o.lon) < 3e-5);
+    CHECK(p.altM == 812 && std::fabs(p.speedKmh - 47.5f) < 0.01f && std::fabs(p.climbMs + 1.3f) < 0.01f);
+    CHECK(std::fabs(p.headingDeg - 271) < 1.5f);
+    // large values use the x4 / x5 scales
+    o.altM = 3050; o.speedKmh = 120; o.climbMs = 9.5f; o.lat = -33.9; o.lon = -70.6; o.online = false;
+    n = fanetEncodeTracking(b, sizeof b, 0xFD0001, o);
+    CHECK(fanetDecode(b, n, p));
+    CHECK(std::fabs(p.altM - 3052) <= 4 && std::fabs(p.speedKmh - 120) <= 1.5f && std::fabs(p.climbMs - 9.5f) <= 0.3f);
+    CHECK(!p.online && std::fabs(p.lat + 33.9) < 2e-5 && std::fabs(p.lon + 70.6) < 3e-5);
+    // name, ground tracking, extended header + unicast, service with wind
+    n = fanetEncodeName(b, sizeof b, 0xFD1A2B, "Krzysztof");
+    CHECK(fanetDecode(b, n, p) && p.type == FT_NAME && p.name == "Krzysztof");
+    n = fanetEncodeName(b, sizeof b, 0xFD1A2B, "Łukasz Żółć");
+    CHECK(fanetDecode(b, n, p) && p.name == "Lukasz Zolc");
+    n = fanetEncodeGround(b, sizeof b, 0xFD1A2B, 54.1, 18.2, 9, true);
+    CHECK(fanetDecode(b, n, p) && p.type == FT_GROUND && p.groundType == 9 && p.online);
+    uint8_t ext[] = {0x82, 0x11, 0x34, 0x12, 0x20, 0xFD, 0x2B, 0x1A, 'A', 'n', 'n', 'a'};
+    CHECK(fanetDecode(ext, sizeof ext, p) && p.type == FT_NAME && p.name == "Anna" && p.src == 0x111234);
+    uint8_t svc[] = {0x04, 0x01, 0x00, 0x05, 0x20, 0, 0, 0, 0, 0, 0, 64, 50, 0x80 | 20};
+    CHECK(fanetDecode(svc, sizeof svc, p) && p.hasWind && std::fabs(p.windDirDeg - 90) < 0.1f &&
+          std::fabs(p.windKmh - 10) < 0.01f && std::fabs(p.gustKmh - 20) < 0.01f);
+    CHECK(!fanetDecode(b, 3, p));
+    CHECK(fanetTrackingIntervalMs(0) == 5000 && fanetTrackingIntervalMs(9) == 5000 && fanetTrackingIntervalMs(25) == 15000);
+    CHECK(fanetAddrStr(0xFD1A2B) == "FD1A2B");
+    CHECK(clockPosition(0) == 12 && clockPosition(60) == 2 && clockPosition(-90) == 9 && clockPosition(350) == 12);
+
+    // traffic: head-on at 2 km, same height, both 40 km/h -> closing 22 m/s -> CPA ~0 in ~90 s (> 60 s window)
+    TrafficDb db;
+    TrafficOwn me;
+    me.valid = me.flying = true; me.lat = 54.0; me.lon = 18.0; me.altM = 500; me.speedKmh = 40; me.trackDeg = 0;
+    LatLon q = destination({54.0, 18.0}, 0, 1500);
+    FanetPacket t;
+    t.type = FT_TRACKING; t.src = 0x011234; t.hasPos = true; t.lat = q.lat; t.lon = q.lon; t.altM = 520;
+    t.speedKmh = 40; t.headingDeg = 180; t.aircraft = FA_PARAGLIDER;
+    db.onPacket(t, 1000, -90);
+    db.evaluate(me, 1000);
+    CHECK(db.list().size() == 1 && db.list()[0].level == 1);
+    CHECK(std::fabs(db.list()[0].distM - 1500) < 5 && std::fabs(db.list()[0].dzM - 20) < 0.1f);
+    CHECK(db.list()[0].cpaS == 60 && std::fabs(db.list()[0].cpaM - 167) < 5);
+    q = destination({54.0, 18.0}, 0, 800);  // 36 s to CPA -> caution
+    t.lat = q.lat; t.lon = q.lon;
+    db.onPacket(t, 2000, -80);
+    db.evaluate(me, 2000);
+    CHECK(db.list()[0].level == 2);
+    q = destination({54.0, 18.0}, 0, 300);  // 13 s -> alarm
+    t.lat = q.lat; t.lon = q.lon;
+    db.onPacket(t, 3000, -70);
+    db.evaluate(me, 3000);
+    CHECK(db.maxLevel() == 3);
+    t.altM = 800;  // 300 m above -> only "nearby"
+    db.onPacket(t, 3500, -70);
+    db.evaluate(me, 3500);
+    CHECK(db.maxLevel() == 1);
+    // on the ground: no warnings; old entries age out; names attach
+    t.altM = 520;
+    db.onPacket(t, 4000, -70);
+    me.flying = false;
+    db.evaluate(me, 4000);
+    CHECK(db.maxLevel() == 1);
+    FanetPacket nm;
+    nm.type = FT_NAME; nm.src = 0x011234; nm.name = "Ola";
+    db.onPacket(nm, 4100, -70);
+    CHECK(db.find(0x011234)->name == "Ola");
+    db.evaluate(me, 25000);
+    CHECK(db.list()[0].stale() && db.list()[0].level == 0);
+    db.evaluate(me, 130000);
+    CHECK(db.list().empty());
+    CHECK(db.recent(130000) == 0);
+}
+
+
+static void testEscape() {
+    // square R zone 52.00..52.10 N, 21.00..21.16 E (about 11 x 11 km), 300..1000 m MSL,
+    // and a P zone right above it (1000..2000 m) over the eastern half
+    const char* txt =
+        "AC R\nAN SQUARE\nAL 300m MSL\nAH 1000m MSL\n"
+        "DP 52:00:00 N 021:00:00 E\nDP 52:06:00 N 021:00:00 E\nDP 52:06:00 N 021:09:36 E\nDP 52:00:00 N 021:09:36 E\n"
+        "AC P\nAN ABOVE\nAL 1000m MSL\nAH 2000m MSL\n"
+        "DP 52:00:00 N 021:04:48 E\nDP 52:06:00 N 021:04:48 E\nDP 52:06:00 N 021:09:36 E\nDP 52:00:00 N 021:09:36 E\n"
+        "AC G\nAN IGNORED\nAL GND\nAH 5000m MSL\n"
+        "DP 51:00:00 N 020:00:00 E\nDP 53:00:00 N 020:00:00 E\nDP 53:00:00 N 022:00:00 E\nDP 51:00:00 N 022:00:00 E\n";
+    AirspaceDb db;
+    CHECK(db.loadOpenAirText(txt) == 3);
+    Settings set;  // G is ignored by default
+    EscapeQuery q;
+    q.groundMsl = 100;
+    q.trackDeg = 0;
+    q.gsMs = 11;
+    // near the west edge, mid altitude: fly west (270), about 1 km incl. margin
+    q.lat = 52.05; q.lon = 21.015; q.altMsl = 600;
+    EscapeResult r = planEscape(db, q, &set);
+    CHECK(r.inside && r.zones.size() == 1);
+    CHECK(r.best.valid && r.best.kind == EscapeOption::Horizontal);
+    NEAR(r.best.bearingDeg, 270, 5);
+    NEAR(r.horiz.distM, 1030 + 150, 120);
+    CHECK(r.down.valid && r.up.valid);
+    // close below the ceiling in the western half: climbing 50+30 m beats ~4 km of flying
+    q.lon = 21.05; q.altMsl = 950;
+    r = planEscape(db, q, &set);
+    CHECK(r.best.valid && r.best.kind == EscapeOption::Up);
+    NEAR(r.up.targetAlt, 1030, 1);
+    // same, but in the eastern half the P zone sits on top: up means above 2000 m -> fly out instead
+    q.lon = 21.12; q.lat = 52.05;
+    r = planEscape(db, q, &set);
+    NEAR(r.up.targetAlt, 2030, 1);
+    CHECK(r.best.kind != EscapeOption::Up);
+    // just above the floor: descend
+    q.lon = 21.05; q.altMsl = 330;
+    r = planEscape(db, q, &set);
+    CHECK(r.best.valid && r.best.kind == EscapeOption::Down);
+    NEAR(r.down.targetAlt, 270, 1);
+    // floor too close to the ground: descending is not offered
+    q.groundMsl = 250;
+    r = planEscape(db, q, &set);
+    CHECK(!r.down.valid);
+    // outside (below the floor): nothing to do
+    q.groundMsl = 100; q.altMsl = 200;
+    r = planEscape(db, q, &set);
+    CHECK(!r.inside && !r.best.valid);
+    // horizontal search crosses touching zones: in P (above, east half) at 1500 m: P spans 21.08..21.16,
+    // nearest exit is the P boundary itself (R below does not block at 1500 m)
+    q.lat = 52.05; q.lon = 21.09; q.altMsl = 1500;
+    r = planEscape(db, q, &set);
+    CHECK(r.inside && r.horiz.valid);
+    NEAR(r.horiz.bearingDeg, 270, 5);
+
+    // route check: a line crossing the square west -> east, and a leg that stays outside
+    std::vector<LatLon> path = {{52.05, 20.9}, {52.05, 21.3}, {52.2, 21.3}};
+    auto rc = checkRoute(db, path, &set, 0, 0, 1013.25f, 1000.f, [](double, double) { return 100.f; });
+    CHECK(rc.size() == 2);
+    if (rc.size() == 2) {
+        CHECK(db.zones()[rc[0].zone].name == "SQUARE" && rc[0].conflict);
+        NEAR(rc[0].atKm, 6.9, 0.3);
+        NEAR(rc[0].floorAglM, 200, 1);
+        CHECK(db.zones()[rc[1].zone].name == "ABOVE" && rc[1].conflict);  // floor 900 m AGL < 1000
+    }
+    rc = checkRoute(db, path, &set, 0, 0, 1013.25f, 500.f, [](double, double) { return 100.f; });
+    CHECK(rc.size() == 2 && rc[0].conflict && !rc[1].conflict);
+}
+
 int main() {
+    testFanet();
     testTopo();
     testFileXfer();
     testBlueFly();
@@ -647,6 +845,7 @@ int main() {
     testTerrain();
     testFlight();
     testAlerts();
+    testEscape();
     std::printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

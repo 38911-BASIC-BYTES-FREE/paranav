@@ -37,12 +37,18 @@ struct Battery {
     int ma = 0;
     int minutesLeft = -1;
     bool charging = false;
+    int chgStat = -1;        // BQ25896 REG0B CHRG_STAT: 0 not charging, 1 pre-charge, 2 fast (CC/CV), 3 done
+    int minutesToFull = -1;  // BQ27220 TimeToFull (-1 unknown)
+    int remMah = -1, fullMah = -1;  // BQ27220 RemainingCapacity / FullChargeCapacity
     const char* source = "–";
 };
 bool batteryInit();
 Battery batteryRead();
 
 // ---- power (BQ25896 charger)
+// True during a full e-paper refresh and 1 s after it: the panel's high-voltage supply disturbs
+// the wired MS5611 (~2 m altitude jump), so the vario ignores those samples.
+bool baroBlanked();
 bool usbPowered();   // VBUS present -> software power-off not possible
 bool powerOff();     // BATFET off (ship mode). Wake: PWR/QON button or plugging USB. false if USB present.
 

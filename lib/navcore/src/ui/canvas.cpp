@@ -75,6 +75,56 @@ void Canvas::rect(int x, int y, int w, int h, uint8_t c, int t) {
     }
 }
 
+// Horizontal inset of row dy (0 = top row) of a rounded rectangle of height h and radius r.
+static int roundInset(int dy, int h, int r) {
+    int d = std::min(dy, h - 1 - dy);  // distance from the nearer horizontal edge
+    if (d >= r) return 0;
+    float yy = r - d - 0.5f;
+    return (int)std::lround(r - std::sqrt(std::max(0.f, (float)r * r - yy * yy)));
+}
+
+void Canvas::fillRoundRect(int x, int y, int w, int h, int r, uint8_t c, Pattern p) {
+    if (w <= 0 || h <= 0) return;
+    r = std::max(0, std::min(r, std::min(w, h) / 2));
+    for (int dy = 0; dy < h; dy++) {
+        int in = roundInset(dy, h, r);
+        for (int xx = x + in; xx < x + w - in; xx++)
+            if (patternOn(p, xx, y + dy)) px(xx, y + dy, c);
+    }
+}
+
+void Canvas::invertRoundRect(int x, int y, int w, int h, int r) {
+    if (w <= 0 || h <= 0) return;
+    r = std::max(0, std::min(r, std::min(w, h) / 2));
+    for (int dy = 0; dy < h; dy++) {
+        int in = roundInset(dy, h, r);
+        for (int xx = x + in; xx < x + w - in; xx++) px(xx, y + dy, 15 - get(xx, y + dy));
+    }
+}
+
+void Canvas::roundRect(int x, int y, int w, int h, int r, uint8_t c, int t) {
+    if (w <= 0 || h <= 0) return;
+    r = std::max(0, std::min(r, std::min(w, h) / 2));
+    // straight edges
+    for (int i = 0; i < t; i++) {
+        hline(x + r, y + i, w - 2 * r, c);
+        hline(x + r, y + h - 1 - i, w - 2 * r, c);
+        vline(x + i, y + r, h - 2 * r, c);
+        vline(x + w - 1 - i, y + r, h - 2 * r, c);
+    }
+    // corners: pixels whose centre lies in the ring r-t .. r around the corner centre
+    float ro = (float)r, ri = (float)std::max(0, r - t);
+    for (int dy = 0; dy < r; dy++)
+        for (int dx = 0; dx < r; dx++) {
+            float fx = r - dx - 0.5f, fy = r - dy - 0.5f, d = std::sqrt(fx * fx + fy * fy);
+            if (d > ro || d < ri) continue;
+            px(x + dx, y + dy, c);
+            px(x + w - 1 - dx, y + dy, c);
+            px(x + dx, y + h - 1 - dy, c);
+            px(x + w - 1 - dx, y + h - 1 - dy, c);
+        }
+}
+
 void Canvas::invertRect(int x, int y, int w, int h) {
     for (int yy = y; yy < y + h; yy++)
         for (int xx = x; xx < x + w; xx++) px(xx, yy, 15 - get(xx, yy));

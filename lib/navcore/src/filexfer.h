@@ -2,7 +2,9 @@
 //
 // Control channel (text lines, phone -> device):
 //   HELLO                                         -> "PARANAV 1 <fw>"
-//   BEGIN <kind> <size> <crc32hex> <replace> <name>   kind: airspace | activations | waypoints | route
+//   BEGIN <kind> <size> <crc32hex> <flags> <name>   kind: airspace | activations | waypoints | route
+//                                                 flags: bit 0 = replace the other files of this kind,
+//                                                        bit 1 = (route, fw 0.5+) make it the active route
 //                                                 -> "OK BEGIN <window>" | "ERR <reason>"
 //   END                                           -> "OK RECEIVED" (file verified, installation queued),
 //                                                    later "OK END <count>" or "ERR <reason>" from install
@@ -43,6 +45,7 @@ public:
     struct Pending {
         std::string kind, name, tmpPath;
         bool replace = false;
+        bool activate = false;  // route: select it on the device right away
     };
     bool takePending(Pending& p);
     // Install (move into place). Returns false + message on error; count = zones / waypoints installed.
@@ -76,7 +79,7 @@ private:
     Notify notify_;
     FILE* file_ = nullptr;
     std::string kind_, name_;
-    bool replace_ = false;
+    bool replace_ = false, activate_ = false;
     uint32_t size_ = 0, crcExpected_ = 0, crc_ = 0, received_ = 0, lastAck_ = 0;
     bool seqErrSent_ = false;
     std::mutex mtx_;

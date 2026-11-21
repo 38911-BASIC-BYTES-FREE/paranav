@@ -1,4 +1,5 @@
 #include "board.h"
+#include "i18n.h"
 
 #include <FS.h>
 #include <SD.h>
@@ -40,8 +41,14 @@ uint8_t* framebuffer() { return epd_hl_get_framebuffer(&hl); }
 
 int displayTemperature() { return epdTemp; }
 
+static volatile bool fullRefreshActive = false;
+static volatile uint32_t blankUntilMs = 0;
+
+bool baroBlanked() { return fullRefreshActive || (int32_t)(millis() - blankUntilMs) < 0; }
+
 void displayUpdate(bool full) {
     if (!epdOk) return;
+    if (full) fullRefreshActive = true;
     epd_poweron();
     if (millis() - lastTempRead > 60000 || lastTempRead == 0) {
         epdTemp = epd_ambient_temperature();
@@ -66,6 +73,10 @@ void displayUpdate(bool full) {
         epd_hl_update_screen(&hl, MODE_DU, epdTemp);
     }
     epd_poweroff();
+    if (full) {
+        blankUntilMs = millis() + 1000;  // let the supply settle after the panel is switched off
+        fullRefreshActive = false;
+    }
 }
 
 // ------------------------------------------------------------------ input
@@ -262,11 +273,11 @@ bool batteryInit() {
     gauge.init();  // same provisioning as LilyGO factory firmware; result not required
     uint16_t mv = 0;
     bool ok = gaugeWord(0x08, mv) && mv > 2500 && mv < 4600;
-    Serial.printf("[batt] BQ27220 %s (%u mV)\n", ok ? "OK" : "brak odpowiedzi", mv);
+    Serial.printf("[batt] BQ27220 %s (%u mV)\n", ok ? "OK" : TR("brak odpowiedzi", "no response"), mv);
     float v;
     bool ch;
     bool chg = chargerBattery(v, ch);
-    Serial.printf("[batt] BQ25896 ADC %s (%.2f V)\n", chg ? "OK" : "brak", v);
+    Serial.printf("[batt] BQ25896 ADC %s (%.2f V)\n", chg ? "OK" : TR("brak", "none"), v);
     return ok || chg;
 }
 
@@ -280,15 +291,23 @@ Battery batteryRead() {
         b.pct = soc;
         uint16_t cur;
         if (gaugeWord(0x0C, cur)) b.ma = (int16_t)cur;
-        if (b.ma < -5 && gaugeWord(0x10, rem)) b.minutesLeft = (int)(rem * 60L / (-b.ma));
+        if (gaugeWord(0x10, rem)) {
+            b.remMah = rem;
+            if (b.ma < -5) b.minutesLeft = (int)(rem * 60L / (-b.ma));
+        }
+        uint16_t w;
+        if (gaugeWord(0x12, w) && w > 0 && w < 20000) b.fullMah = w;
+        if (b.ma > 5 && gaugeWord(0x18, w) && w < 65535) b.minutesToFull = w;  // TimeToFull, 65535 = n/a
         b.charging = b.ma > 5;
+        uint8_t st;
+        if (i2cRead(BQ25896_ADDR, 0x0B, &st, 1)) b.chgStat = (st >> 3) & 0x03;
         return b;
     }
     float v;
     bool ch;
     if (chargerBattery(v, ch)) {
         b.ok = true;
-        b.source = "BQ25896 (napięcie)";
+        b.source = TR("BQ25896 (napięcie)", "BQ25896 (voltage)");
         b.volts = v;
         b.pct = lipoPercent(v);
         b.charging = ch;
@@ -300,7 +319,7 @@ Battery batteryRead() {
     bool g = Wire.endTransmission() == 0;
     Wire.beginTransmission(BQ25896_ADDR);
     bool c = Wire.endTransmission() == 0;
-    snprintf(why, sizeof why, "brak (55:%s 6B:%s)", g ? "jest" : "nie", c ? "jest" : "nie");
+    snprintf(why, sizeof why, TR("brak (55:%s 6B:%s)", "none (55:%s 6B:%s)"), g ? TR("jest", "yes") : TR("nie", "no"), c ? TR("jest", "yes") : TR("nie", "no"));
     b.source = why;
     return b;
 }
@@ -315,7 +334,7 @@ std::string i2cScan() {
             out += b;
         }
     }
-    return out.empty() ? "nic" : out;
+    return out.empty() ? TR("nic", "nothing") : out;
 }
 
 // ------------------------------------------------------------------ front light

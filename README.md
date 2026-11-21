@@ -1,150 +1,217 @@
-<<<<<<< HEAD
-# ParaNav – komputer lotu dla motoparalotni
+# ParaNav – paramotor flight computer
 
-Firmware dla **LilyGO T5 E-Paper S3 Pro** (ESP32-S3, e-papier 4,7″ 960×540, GPS MIA-M10Q/L76K) z dodatkowym barometrem **MS5611** na złączu QWIIC. Ekran w poziomie, dane ładowane z karty microSD.
+🇵🇱 [Wersja polska](README.pl.md)
 
-> ⚠️ Projekt eksperymentalny. Dane stref i obliczenia **nie są certyfikowane** – to pomoc, nie podstawa nawigacji. Zawsze sprawdzaj AIP/AUP przed lotem.
+Firmware for the **LilyGO T5 E-Paper S3 Pro** (ESP32-S3, 4.7″ 960×540 e-paper, MIA-M10Q/L76K GPS) with an additional **MS5611** barometer on the QWIIC connector. Landscape screen, data loaded from a microSD card. User interface in **English or Polish** (switchable in the menu).
 
-## Funkcje (wersja 0.2)
+> ⚠️ Experimental project. Airspace data and computations are **not certified** – this is an aid, not a primary means of navigation. Always check the AIP/AUP and NOTAMs before flight.
 
-| Obszar | Co działa |
+## What it is and what it does
+
+ParaNav is a flight computer for paramotor pilots, built on an off-the-shelf board with a large e-paper screen (readable in full sunlight, almost no power while the picture stays). It replaces a variometer, GPS navigation, fuel calculator and airspace warner in the cockpit – all on one screen, operated with two buttons (with gloves) or by touch.
+
+**In flight it shows:**
+* **altitude and vario** – from a wired barometer or a BlueFlyVario over Bluetooth (without a barometer: from GPS); height above takeoff and above the terrain, average climb, thermal gain,
+* **wind** – worked out on its own from a few turns, no extra sensors,
+* **fuel** – flight time left, fuel needed to get home against the wind plus reserve, and a **TURN BACK** alert when it no longer suffices,
+* **home and glide** – direction and distance to takeoff (Go Home), glide ratio, whether home is within glide with the engine off,
+* **navigation** – to takeoff, a waypoint, the nearest landing field, or along a route with automatic point switching,
+* **airspace** – zones on the map, the nearest zone, time to entry, the vertical profile ahead and alerts; time-limited zones follow the AUP activation file,
+* **airspace exit** – if you fly into active airspace by mistake, one button shows the fastest way out (level, up or down),
+* **topographic map** (TOPO screen) – forests, water, built-up areas, power lines, wind turbines, masts, aerodromes,
+* **other pilots (FANET)** – the 868 MHz radio on the board: you see FANET-equipped pilots and get proximity warnings, and they see you.
+
+**Before and after the flight:**
+* **plan routes on the phone** (Android app, OpenTopoMap with airspace) and send them over Bluetooth – ParaNav checks right away whether the route crosses airspace,
+* **airspace, waypoints and maps** come from the phone, a card reader or a USB cable (the card as a drive on a computer),
+* **IGC and GPX logging** starts and stops by itself; a flight summary after landing,
+* **charging** – when USB is plugged in the device asks: navigation, charging or files.
+
+**Hardware:** LilyGO T5 E-Paper S3 Pro (ESP32-S3, 4.7″ 960×540 screen, GPS, LoRa radio, battery) + an inexpensive MS5611 barometer or a BlueFlyVario. English or Polish user interface, built-in help in the menu.
+
+## Features in detail (version 0.5.7)
+
+| Area | What works |
 |---|---|
-| Wysokość | baro (QNH, auto-kalibracja z GPS lub mapy terenu), nad startem, nad terenem (SRTM) |
-| Wariometr | filtr Kalmana ~90 Hz, średnia 30 s, wykrywanie krążenia i zysku w kominie (tylko wizualnie – brak brzęczyka) |
-| Wiatr | z dopasowania okręgu do wektorów prędkości GPS podczas zakrętów (≥200° w ciągu 90 s) |
-| Doskonałość | zmierzona (GS / opadanie) przy locie ślizgowym, zasięg ślizgu z biegunowej + wiatr, „dolecisz do startu” |
-| Paliwo | zapas czasu, paliwo na powrót (z wiatrem) + rezerwa, alarm WRACAJ, licznik zatrzymywany przy wyłączonym silniku |
-| Strefy | OpenAir z SD, test w poziomie i pionie, przewidywany czas wlotu, plik aktywacji AUP, profil pionowy |
-| Nawigacja | Go Home, punkt z listy, najbliższe lądowisko, trasa (.cup) z auto-przełączaniem, ETE/ETA, wymagana L/D |
-| Zapis lotu | IGC + GPX w `/logs`, automatyczny start/stop (wykrywanie startu i lądowania), podsumowanie lotu |
-| Mapa TOPO | czarno-biała mapa topograficzna z OpenStreetMap (woda, las, zabudowa, linie energetyczne, wiatraki, maszty, lotniska, drogi), północ u góry, z10–z14 |
-| Wgrywanie | karta SD w czytniku, **tryb USB** (karta jako dysk w komputerze), telefon przez Bluetooth (strefy, punkty) |
-| System | bateria (BQ27220), stan GPS, karta SD, test dotyku |
+| Altitude | barometric (QNH, auto-calibration from GPS or terrain data), height above takeoff, AGL (SRTM terrain) |
+| Variometer | Kalman filter at ~90 Hz, 30 s average, circling detection and thermal gain (visual only – no buzzer) |
+| Wind | circle fit to GPS velocity vectors during turns (≥200° within 90 s) |
+| Glide | measured L/D (GS / sink) in a steady glide, glide range from the polar + wind, "home within glide" |
+| Fuel | endurance, fuel to get home (wind corrected) + reserve, TURN BACK alert, counter stops with the engine off |
+| Airspace | OpenAir from SD, lateral and vertical check, predicted time to entry, AUP activation file, vertical profile |
+| Airspace exit | INSIDE alert with **LEAD ME OUT / IGNORE** buttons; EXIT screen with the fastest way out (level / up / down) |
+| Route check | after a route is chosen (on the device or from the phone): list of zones it crosses; the app warns before sending too |
+| Navigation | Go Home, waypoint from a list, nearest landing field, several routes (.cup) with a "Choose route" list, route drawn on MAP and TOPO, automatic point switching, ETE/ETA, required L/D |
+| Flight log | IGC + GPX in `/logs`, automatic start/stop (takeoff and landing detection), flight summary |
+| TOPO map | black and white topographic map from OpenStreetMap (water, forest, built-up areas, power lines, wind turbines, masts, aerodromes, roads), north up, z10–z14 |
+| FANET | on-board 868 MHz LoRa radio: position broadcast (as a paraglider), other pilots on MAP, TOPO and the TRAFFIC screen, proximity warnings, visibility in OGN |
+| Language | English / Polish – Menu → Display and map → Language / Język (stored in `config.ini`: `lang=en` / `lang=pl`) |
+| Data upload | SD card in a card reader, **USB mode** (the card as a drive on a computer), phone via Bluetooth (airspace, waypoints, routes) |
+| Route planning | in the Android app on an OpenTopoMap map with airspace and waypoints, sent to ParaNav as the active route |
+| System | battery (BQ27220), GPS status, SD card, FANET, free memory |
 
-## Sprzęt
+## Hardware
 
-### Podłączenie MS5611
-Złącze QWIIC (JST-SH 4 pin): **czarny = GND, czerwony = 3V3, niebieski = SDA (GPIO39), żółty = SCL (GPIO40)**.
-Moduł GY-63: VCC→3V3, GND→GND, SCL→SCL, SDA→SDA, PS zostaw (na module podciągnięty do VCC = tryb I²C).
-Adres 0x77 (CSB=0) lub 0x76 – oba są wykrywane automatycznie.
+### Connecting the MS5611
+QWIIC connector (JST-SH 4 pin): **black = GND, red = 3V3, blue = SDA (GPIO39), yellow = SCL (GPIO40)**.
+GY-63 module: VCC→3V3, GND→GND, SCL→SCL, SDA→SDA, leave PS as is (pulled up to VCC on the module = I²C mode).
+Address 0x77 (CSB=0) or 0x76 – both are detected automatically.
 
-Wskazówki montażu: czujnik jest **wrażliwy na światło** – przykryj go kawałkiem gąbki/pianki, nie wystawiaj na strumień powietrza ze śmigła, a obudowa powinna mieć mały otwór wyrównujący ciśnienie.
+Mounting tips: the sensor is **sensitive to light** – cover it with a piece of foam, keep it out of the propeller airflow, and give the enclosure a small hole for static pressure.
 
-### Barometr: kabel, BlueFly albo bez
-Jeden firmware obsługuje automatycznie trzy przypadki – źródło wybierane jest na bieżąco:
-1. **MS5611 na kablu QWIIC** – jeśli odpowiada (sprawdzany co 10 s, można go podłączyć po włączeniu),
-2. **BlueFlyVario v25 przez Bluetooth LE** – urządzenie samo wyszukuje „BlueFly…” (usługa Microchip Transparent UART), łączy się i wznawia połączenie po zerwaniu. Obsługiwane formaty wyjścia BlueFly: `PRS`/`_PRS` (domyślny), `LK8EX1`, `LXWP0`, `$XCTOD` (bateria). Pozycja GPS z BlueFly jest ignorowana – używany jest wewnętrzny GPS,
-3. **bez barometru** – wysokość i vario z GPS (mniej dokładne, vario opóźnione o kilka sekund).
+### Barometer: wired, BlueFly or none
+One firmware handles three cases automatically – the source is chosen continuously:
+1. **MS5611 on the QWIIC cable** – if it responds (checked every 10 s, can be plugged in after power-on),
+2. **BlueFlyVario v25 via Bluetooth LE** – the device looks for "BlueFly…" (Microchip Transparent UART service), connects and reconnects after a lost link. Supported BlueFly output formats: `PRS`/`_PRS` (default), `LK8EX1`, `LXWP0`, `$XCTOD` (battery). The BlueFly GPS position is ignored – the internal GPS is used,
+3. **no barometer** – altitude and vario from GPS (less accurate, vario lags a few seconds).
 
-Zmiana źródła restartuje filtr vario (bez fałszywego skoku), a utrata barometru w locie daje alarm BRAK BAROMETRU. Bluetooth można wyłączyć w Menu → System (oszczędza baterię). Uwaga: BlueFly połączony z ParaNav nie połączy się w tym czasie z telefonem.
+Changing the source restarts the vario filter (no false jump), and losing the barometer in flight raises the NO BAROMETER alert. Bluetooth can be switched off in Menu → System (saves battery). Note: a BlueFly connected to ParaNav cannot connect to a phone at the same time.
 
-### Przyciski (uwaga, poprawka do wcześniejszej propozycji)
-Na schemacie IO48 to linia wyświetlacza, a przycisk użytkownika **S3 jest podłączony przez ekspander PCA9535 (IO1_2)**. Drugim przyciskiem jest **BOOT (GPIO0)**.
+**Wired sensor and full screen refreshes (0.5.2):** the e-paper high-voltage supply disturbs the wired MS5611 during a full refresh (about 2 m altitude jump, ±0.5 m/s on the vario). For the refresh and 1 s after it the vario ignores the wired readings and extrapolates with the last climb rate; isolated samples more than 1.5 m off the prediction are rejected as well (a jump that lasts 0.3 s is accepted as real). The SYSTEM screen shows `F a/b` next to the pressure: refreshes waited out / samples rejected. Hardware help: 10 µF + 100 nF across VCC–GND at the sensor, a short cable routed away from the display flex.
 
-| | Krótko | Długo (>0,7 s) |
+### Buttons
+On the schematic IO48 is a display line; the user button **S3 is connected through the PCA9535 expander (IO1_2)**. The second button is **BOOT (GPIO0)**.
+
+| | Short | Long (>0.7 s) |
 |---|---|---|
-| **KLAWISZ (S3)** | następny ekran / w menu: dalej / w edycji: + | otwórz menu / wybierz / zapisz |
-| **BOOT** | poprzedni ekran / w menu: wstecz / w edycji: − | **Go Home** (cel = start, ekran NAWIGACJA) / wyjdź z menu |
-| dowolny | potwierdza aktywny alarm | |
-| **oba naraz** | krótko (<1 s) = **podświetlenie wł./wył.** | 3 s = **wyłącz** (działa też w menu) |
+| **KEY (S3)** | next screen / menu: next / editing: + | open menu / select / save |
+| **BOOT** | previous screen / menu: back / editing: − | **Go Home** (target = home, NAV screen) / exit menu |
+| any | acknowledges the active alert | |
+| **both together** | short (<1 s) = **front light on/off** | 3 s = **power off** (works in the menu too) |
 
-**Podświetlenie:** naciśnij krótko oba przyciski jednocześnie (albo Menu → Ekran i mapa → Podświetlenie). Gdy świeci, na pasku stanu jest czarny kwadrat ze słoneczkiem – w pełnym słońcu od razu widać, że niepotrzebnie zużywa baterię. Jasność i automatyczne wyłączanie po N minutach ustawisz w tym samym menu. Przycisku PWR nie da się do tego użyć: jest podłączony tylko do układu ładowania (wejście QON układu BQ25896), a nie do procesora, więc program nie widzi jego naciśnięć.
+**Front light:** press both buttons briefly at the same time (or Menu → Display and map → Front light). While it is on, the status bar shows a black box with a sun – in bright sunlight you can see immediately that it is draining the battery. Brightness and automatic switch-off after N minutes are in the same menu. The PWR button cannot be used for this: it is wired only to the charger chip (QON input of the BQ25896), not to the processor, so the software cannot see it.
 
-**Włączanie / wyłączanie:** włącza przycisk PWR na płytce albo podłączenie USB. Wyłączanie: **przytrzymaj oba przyciski (KLAWISZ + BOOT) przez 3 s** (po 1 s pojawia się napis „WYŁĄCZANIE…”, puszczenie anuluje) albo Menu → *Wyłącz urządzenie* → *TAK*. Lot zostaje zapisany i zamknięty, a na ekranie zostaje napis „WYŁĄCZONY”. Układ ładowania BQ25896 odcina wtedy baterię. **Przy podłączonym USB wyłączenie nie działa**, bo tak działa ten układ, a nie firmware.
+**Power on / off:** the PWR button on the board or plugging in USB powers the device on. Power off: **hold both buttons (KEY + BOOT) for 3 s** (POWERING OFF… appears after 1 s, releasing cancels) or Menu → *Power off* → *YES*. The flight is saved and closed, and POWERED OFF stays on the screen. The BQ25896 charger then disconnects the battery. **Power off does not work while USB is connected** – that is how the charger chip works, not the firmware.
 
-Dotyk (gdy masz gołe palce): pasek u góry = menu, lewa krawędź = poprzedni ekran, prawa = następny, na MAPIE środek = zmiana skali, na NAWIGACJI = zmiana celu, na PALIWIE = przyciski ±0,5 l / pełny bak / silnik.
+Touch (bare fingers): top bar = menu, left edge = previous screen, right edge = next, MAP centre = change scale, TOPO upper/lower half = zoom in/out, TRAFFIC list = fly to the pilot, NAV = change target, FUEL = ±0.5 l / full tank / engine buttons. In the menu: tap an item to choose it; long lists have big **▲ / ▼** buttons on the right (page up / down).
 
-## Pomoc w urządzeniu
-Menu → **Pomoc**: przyciski i dotyk, pasek stanu, opis każdego ekranu, alarmy, pliki na karcie SD, automatyczny start/lądowanie/zapis. Treść jest w `lib/navcore/src/ui/help.cpp` – łatwo ją poprawić; `tools/preview/layout_check.sh` sprawdza, czy każda strona mieści się na ekranie i czy font ma wszystkie znaki.
+**Menu refresh:** the menu, help and the flight summary are static – they are redrawn only after a button press or a touch (no updates every second, no timed full refresh). A full refresh (flash) happens when the menu opens or closes and after every 20 moves inside it, so no ghosting builds up.
 
-## Ekrany
+### USB power: navigation, charging or files
+When USB power appears, ParaNav asks what to do (like action cameras): **NAVIGATION** (normal operation, e.g. a power bank in flight), **CHARGING** (static battery screen: navigation paused, FANET and BlueFly off, redrawn only when the percentage changes) or **FILES** (USB mode – offered only when a computer is on the other end of the cable). Tap a button, or KEY short = next / long = choose.
 
-`LOT → MAPA → TOPO → NAWIGACJA → TERMIKA → STREFY → PALIWO → SYSTEM` (podglądy PNG w `docs/screens/`; TOPO na podglądzie pokazuje fikcyjną mapę testową).
+* No answer within 15 s: **charging** if the device was switched on by plugging USB in, **navigation** if it was already running.
+* **Never asked in flight** – a power bank plugged in during the flight just powers the device. After a crash restart (watchdog, panic, brownout) the device goes straight back to navigation.
+* Leaving charging: tap the screen, hold KEY, or **unplug USB** → navigation starts. Manual: Menu → System → *Charging mode*.
 
-### Strefy na mapie
-Wnętrza stref są kreskowane, a nie szare. Szybkie odświeżanie e-papieru (co 1 s) obsługuje tylko czerń i biel, więc szarość „pływałaby” między odświeżeniami.
+Previews: `docs/screens/en/V_usb_question.png`, `W_charging.png`.
 
-* **gęsta kratka** – strefy zakazane, ograniczone i niebezpieczne (P, R, Q, EPP/EPR/EPD),
-* **ukośne linie co 10 px** – CTR oraz TRA/TSA (EPTR/EPTS),
-* **rzadkie ukośne linie** – pozostałe (TMA, ATZ, klasy C/D...).
+### Airspace exit and route check
+When you enter active airspace (the zones that raise the INSIDE alert – ignored classes and zones inactive according to the AUP file do not count), the alert has two buttons:
+* **LEAD ME OUT** (KEY short or the left button) – the **EXIT** screen with the fastest way out, regardless of the target, the route or Go Home,
+* **IGNORE** (BOOT short or the right button) – the alert returns after 2 min if you are still inside.
 
-Kreskowane są tylko strefy aktywne i istotne na Twojej wysokości: jesteś w ich zakresie pionowym albo bliżej niż 2× bufor pionowy, min. 150 m. Strefy wysoko nad Tobą lub pod Tobą mają sam kontur, a nieaktywne – kontur przerywany.
+Three ways are compared and the fastest one is shown:
+* **level** – directions every 5°; for each, the distance to free airspace (through neighbouring zones, + 150 m margin); time = turn (12°/s) + flight at max(GS, cruise speed),
+* **up** – above the ceiling of every zone above you (including a zone stacked on top) + 30 m, at the climb rate from Menu → Alarms (default 1.5 m/s),
+* **down** – below the floor − 30 m at the sink rate from Menu → Alarms (default 2 m/s); not offered when the zone starts at the ground or it would take you lower than 60 m above the terrain.
 
-## Wysyłanie plików z telefonu (Android)
-Aplikacja w katalogu `android/` (instrukcja budowania: `android/README.md`) wysyła przez Bluetooth strefy (OpenAir), aktywacje na dziś, punkty i trasę (.cup) – bez wyjmowania karty SD. ParaNav sprawdza każdy plik przed zapisaniem i od razu go wczytuje; w czasie odbioru na dole ekranu jest pasek postępu, a na pasku stanu „TEL”. Włączanie/wyłączanie: Menu → System → Telefon (Bluetooth).
+Screen: an arrow relative to your track (or a big CLIMB / DESCEND arrow with the target altitude), the zone name and the times of all three options. The plan is recomputed every second; the screen closes 10 s after you are out (by hand: hold KEY). Without the alert: Menu → Navigation → *Lead me out of airspace*.
 
-## Karta SD (FAT32)
+**Route check:** after choosing a route in Menu → Navigation → Choose route, or activating it from the phone, ParaNav checks which zones the route crosses (a sample every 100 m), using the terrain below the route and today's activation schedule. A conflict = a zone not known to be inactive with its floor below the height in Menu → Alarms → *Route check: flying up to* (default 1000 m AGL). The list is shown on the screen; the app receives the number of conflicts and shows it. The app also checks the route itself before sending (against the zones loaded on its map, without terrain and AUP – more cautious). Again: Menu → Navigation → *Check route – airspace*.
+
+## Built-in help
+Menu → **Help**: buttons and touch, status bar, every screen, FANET, alerts, files on the SD card, maps and USB mode, automatic takeoff/landing/logging. The text is in `lib/navcore/src/ui/help.cpp` (Polish and English side by side); `tools/preview/layout_check.sh` checks in both languages that every page fits on the screen and that the font has all characters.
+
+## Screens
+
+`FLIGHT → MAP → TOPO → TRAFFIC → NAV → THERMAL → AIRSPACE → FUEL → SYSTEM` (PNG previews in `docs/screens/en/`; the TOPO preview shows a fictional test map).
+
+Look (0.5.3): content is grouped in rounded "cards" (2 px frame, 6 px gaps), the status bar is black like the menu title, warnings are rounded black bars, touch buttons have a small shadow, and the vario bar is a rounded scale with a bold zero line. Everything is pure black and white – grey does not survive the fast (DU) e-paper refresh. Drawing helpers: `Canvas::roundRect / fillRoundRect / invertRoundRect`, `card()` and `pill()` in `screens.cpp`.
+
+### Airspace on the map
+Airspace interiors are hatched, not grey. The fast e-paper refresh (every second) supports black and white only, so grey would "float" between refreshes.
+
+* **dense cross-hatch** – prohibited, restricted and danger areas (P, R, Q, EPP/EPR/EPD),
+* **diagonal lines every 10 px** – CTR and TRA/TSA (EPTR/EPTS),
+* **sparse diagonal lines** – others (TMA, ATZ, class C/D...).
+
+Only active airspace relevant at your altitude is hatched: you are within its vertical limits or closer than 2× the vertical buffer (min. 150 m). Airspace far above or below you has an outline only, inactive airspace a dashed outline.
+
+## Routes: planning and choosing
+
+* **Planning – Android app** → "Plan a new route on the map" / "My routes". OpenTopoMap map (topographic), the airspace and waypoints you sent to ParaNav (or added in the planner menu) are shown on it. Tap the map = add a point (tapping a known waypoint uses its name and elevation), tap a point = name / landing field / insert before / delete, hold and drag = move, ↶ = undo, ⤢ = whole route. Below the map: legs with distance and course, total length and time at your cruise speed. Routes are saved on the phone automatically; they can be exported/imported as `.cup`.
+* **Sending:** "Send to ParaNav" adds the route next to the existing ones (option: delete the others) and can make it the **active route** right away (firmware 0.5+).
+* **On ParaNav:** Menu → Navigation → **Choose route** – all routes on the card with points and length (● = active); the choice is remembered in `config.ini` (`routeFile`). The active route is drawn on MAP and TOPO: a line with numbered circles, square = landing field, black = the point you are flying to.
+* **Elevation:** points planned on the map have no elevation in the `.cup` file; ParaNav takes it from the terrain data (`/terrain`). Without terrain data the final glide to such a point shows "––" instead of a wrong value.
+
+Map tiles: © OpenStreetMap contributors, SRTM | map style © OpenTopoMap (CC-BY-SA). The app downloads only what is shown on the screen and keeps it in its cache (works offline for areas viewed before); bulk download is not allowed by the tile server.
+
+## Uploading files from a phone (Android)
+The app in `android/` (build instructions: `android/README.md`) sends airspace (OpenAir), today's activations, waypoints and routes (.cup) via Bluetooth – without removing the SD card. ParaNav checks every file before saving and loads it immediately; during the upload a progress bar is shown at the bottom of the screen and "TEL" in the status bar. On/off: Menu → System → Phone (Bluetooth). The app is in English, or in Polish when the phone is set to Polish.
+
+## SD card (FAT32)
 
 ```
-/config.ini                 ustawienia (tworzone/aktualizowane przez urządzenie)
-/airspace/*.txt             strefy w formacie OpenAir (wczytywane są wszystkie pliki .txt)
-/airspace/activations.txt   aktywacje stref na dziś (format poniżej)
-/waypoints/*.cup            punkty (SeeYou .cup); styl 2–5 = lądowisko
-/route/*.cup                trasa – kolejność punktów w pliku = kolejność trasy
-/terrain/N52E021.hgt ...    mapa terenu SRTM (.hgt, 3″ lub 1″)
-/maps/<obszar>/info.txt     mapa podkładowa dla ekranu TOPO (+ z10.pak … z14.pak)
-/logs/                      zapisane loty .igc + .gpx
+/config.ini                 settings (created/updated by the device)
+/airspace/*.txt             airspace in OpenAir format (all .txt files are loaded)
+/airspace/activations.txt   today's airspace activations (format below)
+/waypoints/*.cup            waypoints (SeeYou .cup); style 2–5 = landing field
+/route/*.cup                route – order of the points in the file = order of the route
+/terrain/N52E021.hgt ...    SRTM terrain data (.hgt, 3″ or 1″)
+/maps/<area>/info.txt       base map for the TOPO screen (+ z10.pak … z14.pak)
+/logs/                      recorded flights .igc + .gpx
 ```
-Przykładowe (fikcyjne!) pliki są w katalogu `sd_card/`.
+Example (fictional!) files are in `sd_card/`.
 
-### Skąd brać dane
-* **Strefy (OpenAir)**: [openAIP](https://www.openaip.net) – eksport dla Polski w formacie OpenAir; albo plik Ryszarda Lewandowskiego z lotnik.org (link na [soaringweb.org/SUA/PL](https://soaringweb.org/SUA/PL)). Aktualizuj co cykl AIRAC (28 dni).
-* **Aktywacje (AUP/UUP)**: strefy TRA/TSA/EPR/EPD/MRT są aktywowane dziennie. Na razie przepisujesz je do `activations.txt` (np. z aplikacji „AUP w Polsce” lub serwisu PANSA). Bez tego pliku takie strefy mają status „AKT.?” i są traktowane jak aktywne (bezpieczniej).
+### Where to get the data
+* **Airspace (OpenAir)**: [openAIP](https://www.openaip.net) – export your country in OpenAir format; for Poland also the file by Ryszard Lewandowski at lotnik.org (link at [soaringweb.org/SUA/PL](https://soaringweb.org/SUA/PL)). Update every AIRAC cycle (28 days).
+* **Activations (AUP/UUP)**: TRA/TSA/EPR/EPD/MRT areas are activated daily. For now you type them into `activations.txt` (in Poland e.g. from the "AUP w Polsce" app or the PANSA website) or in the Android app. Without this file such areas have the status "ACT.?" and are treated as active (the safer choice).
   ```
   date=2026-11-16
   EPTR12 0800-1500
   EPTS05 0900-1100 1300-1600
   ```
-  Czas w **UTC**; nazwa dopasowuje się do początku nazwy strefy (`EPTR12` pasuje do „EPTR12 KRZESINY”, ale nie do „EPTR121”).
-* **Teren**: kafle SRTM `.hgt` w katalogu `/terrain` (szczegóły w sekcji „Mapa terenu” niżej).
-* **Punkty**: dowolny edytor .cup (SeeYou, XCSoar, WeGlide).
+  Times in **UTC**; the name matches the beginning of the airspace name (`EPTR12` matches "EPTR12 KRZESINY" but not "EPTR121").
+* **Terrain**: SRTM `.hgt` tiles in `/terrain` (see "Terrain data" below).
+* **Waypoints**: any .cup editor (SeeYou, XCSoar, WeGlide).
 
-## Mapa terenu (.hgt)
+## Terrain data (.hgt)
 
-Teren daje: wysokość **nad terenem**, automatyczne QNH, profil pionowy na ekranie STREFY i zasięg ślizgu względem ziemi. Bez niego te pola pokazują „––”, a reszta działa.
+Terrain gives you: height **above ground (AGL)**, automatic QNH, the vertical profile on the AIRSPACE screen and glide range over the ground. Without it these fields show "––" and everything else works.
 
-**Skąd:**
-1. **viewfinderpanoramas.org** (polecane – SRTM z uzupełnionymi dziurami): strona [dem3.html](https://viewfinderpanoramas.org/dem3.html) → mapa pokrycia 3″ → kliknij arkusze nad Polską. Arkusze mapy świata 1:1 mln nazywają się **M33, M34** (48–52°N) i **N33, N34** (52–56°N), wschodni skraj Polski jest w **M35/N35**. Każda paczka ZIP to kilkadziesiąt kafli.
-2. **NASA Earthdata**, zbiór SRTMGL3 (wymaga darmowego konta): pliki `N52E021.SRTMGL3.hgt.zip` – po rozpakowaniu `N52E021.hgt`.
+**Where from:**
+1. **viewfinderpanoramas.org** (recommended – SRTM with voids filled): page [dem3.html](https://viewfinderpanoramas.org/dem3.html) → 3″ coverage map → click the sheets you need. The 1:1M world map sheets over Poland are **M33, M34** (48–52°N) and **N33, N34** (52–56°N), the eastern edge of Poland is in **M35/N35**. Each ZIP contains dozens of tiles.
+2. **NASA Earthdata**, SRTMGL3 collection (free account required): files `N52E021.SRTMGL3.hgt.zip` – unzipped `N52E021.hgt`.
 
-**Dokąd:** do katalogu **`/terrain`** na karcie SD. Kafle mogą leżeć bezpośrednio tam albo w podkatalogach, np. tak, jak rozpakuje się ZIP: `/terrain/M34/N52E021.hgt`. Wielkość liter nie ma znaczenia.
+**Where to:** into the **`/terrain`** folder on the SD card. Tiles may be directly there or in subfolders, e.g. as unzipped: `/terrain/M34/N52E021.hgt`. Letter case does not matter.
 
-**Które:** nazwa kafla to jego południowo-zachodni róg, np. `N52E021.hgt` = 52–53°N, 21–22°E. Cała Polska to N49–N54 × E014–E024 (~60 kafli z lądem, ok. 170 MB w 3″). Wystarczą kafle wokół miejsc, w których latasz. Obsługiwane są 3″ (2,9 MB/kafel) i 1″ (26 MB/kafel; dokładniejsze, ale wolniejsze na karcie).
+**Which ones:** the tile name is its south-west corner, e.g. `N52E021.hgt` = 52–53°N, 21–22°E. All of Poland is N49–N54 × E014–E024 (~60 tiles with land, about 170 MB at 3″). The tiles around the places where you fly are enough. Both 3″ (2.9 MB/tile) and 1″ (26 MB/tile; more detailed but slower from the card) are supported.
 
-**Sprawdzenie:** ekran SYSTEM → „Kafle terenu” (liczba znalezionych plików) i „Teren pod Tobą” (wysokość terenu w Twoim miejscu, po złapaniu GPS).
+**Check:** SYSTEM screen → "Terrain / map" (first number = terrain tiles found) and "Terrain below you" (terrain elevation at your position, after a GPS fix).
 
-## Mapy podkładowe (ekran TOPO)
+## Base maps (TOPO screen)
 
-Ekran **TOPO** (po MAPIE) pokazuje mapę topograficzną przygotowaną specjalnie dla e-papieru: czarno-białą, z grubymi znakami tego, co groźne dla pilota.
+The **TOPO** screen (after MAP) shows a topographic map designed for e-paper: black and white, with bold symbols for whatever is dangerous to a pilot.
 
-| Znak | Co to |
+| Symbol | Meaning |
 |---|---|
-| poziome kreski, ciągły brzeg | woda, morze |
-| kropki | las |
-| kratka | zabudowa (osiedla, przemysł) |
-| linia z poprzecznymi kreskami i kropkami | linia wysokiego napięcia (cienka bez kropek – średnie napięcie, od z12) |
-| trójnóg w kółku | wiatrak (od z13 z wysokością, jeśli jest w OSM) |
-| daszek z kropką | maszt, wieża, komin |
-| kółko z poziomą kreską | lotnisko / lądowisko (`aeroway=aerodrome/airstrip`), od z12 pasy startowe |
-| czarne linie | drogi (grubość = ranga) |
-| podwójna linia | rzeka; czarno-biała linia – kolej |
+| horizontal lines, solid shore | water, sea |
+| dots | forest |
+| cross-hatch | built-up area (housing, industry) |
+| line with cross ticks and dots | high-voltage power line (thin, no dots – medium voltage, from z12) |
+| tripod in a circle | wind turbine (from z13 with height, if known in OSM) |
+| caret with a dot | mast, tower, chimney |
+| circle with a horizontal bar | aerodrome / airstrip (`aeroway=aerodrome/airstrip`), runways from z12 |
+| black lines | roads (width = road class) |
+| double line | river; black and white line – railway |
 
-Na mapę nakładane są: Twoja pozycja i kurs, ślad, START, linia do celu, punkty i lądowiska z `.cup` oraz **tylko kontury** stref (szczegóły – ekran STREFY i alarmy). W rogach: wysokość/AGL, prędkość/kurs, vario/wiatr, najbliższa strefa. Dotyk górnej połowy mapy – przybliż, dolnej – oddal (z10 ≈ 90 km szerokości ekranu, z14 ≈ 6 km). Mapa przesuwa się skokami (gdy odlecisz od środka o ok. 1/3 ekranu), żeby e-papier nie przerysowywał wszystkiego co sekundę.
+Overlays: your position and track, flight track, HOME, line to the target, waypoints and landing fields from `.cup`, other pilots (FANET) and **airspace outlines only** (details on the AIRSPACE screen and in the alerts). Corners: altitude/AGL, ground speed/track, vario/wind, nearest airspace. Tap the upper half of the map to zoom in, the lower half to zoom out (z10 ≈ 90 km screen width, z14 ≈ 6 km). The map moves in steps (when you are about 1/3 of the screen away from the centre) so that the e-paper does not redraw everything every second.
 
-> Mapa z OSM jest pomocą orientacyjną, **nie mapą lotniczą** – linie energetyczne i przeszkody mogą być niekompletne.
+> The OSM-based map is an orientation aid, **not an aeronautical chart** – power lines and obstacles may be incomplete.
 
-### 1. Przygotowanie mapy
+### 1. Making the map
 
-Dane: [Geofabrik](https://download.geofabrik.de/europe/poland.html) (OpenStreetMap, licencja ODbL – pobieranie do użytku offline dozwolone). Program: `tools/topo/make_tiles.py`.
+Data: [Geofabrik](https://download.geofabrik.de/) (OpenStreetMap, ODbL licence – downloading for offline use is allowed). Tool: `tools/topo/make_tiles.py`.
 
-**Sposób A – na GitHubie, bez instalowania czegokolwiek (polecany):**
-1. Projekt w Twoim repozytorium na GitHubie (to samo, co do budowania APK).
-2. **Actions → „Zbuduj mapę” → Run workflow.** Domyślnie: Gdańsk, promień 100 km, poziomy 10–14, pliki pomorskie + kujawsko-pomorskie + warmińsko-mazurskie + obwód kaliningradzki (żeby linia brzegowa Zalewu i Mierzei była ciągła).
-3. Po ok. 10–30 min: otwórz zakończone uruchomienie → pobierz artefakt **mapa-gdansk** (zip) → rozpakuj. W środku katalog `maps` i podglądy `podglad_*.png`.
+**Option A – on GitHub, nothing to install (recommended):**
+1. The project in your own GitHub repository (the same one that builds the APK).
+2. **Actions → "Build map" → Run workflow.** Defaults: Gdańsk, radius 100 km, levels 10–14, the Geofabrik files for pomorskie + kujawsko-pomorskie + warmińsko-mazurskie + Kaliningrad oblast (so that the coastline of the Vistula Lagoon and Spit is continuous).
+3. After about 10–30 min: open the finished run → download the **mapa-gdansk** artifact (zip) → unzip. Inside: the `maps` folder and `preview_*.png` previews.
 
-Inny obszar: zmień nazwę, środek, promień i listę plików Geofabrik (muszą razem pokryć cały okrąg – np. dla Warszawy `europe/poland/mazowieckie`). Cała Polska: `europe/poland` (duży plik, długo).
+Other area: change the name, centre, radius and the list of Geofabrik files (together they must cover the whole circle – e.g. for Warsaw `europe/poland/mazowieckie`, for the Alps e.g. `europe/austria`). A whole country at levels 10–12 is fine; levels 13–14 are best limited to your home area.
 
-**Sposób B – na własnym komputerze** (Python 3.9+):
+**Option B – on your own computer** (Python 3.9+):
 ```
 pip install -r tools/topo/requirements.txt
 python3 tools/topo/make_tiles.py --pbf pomorskie-latest.osm.pbf --pbf kujawsko-pomorskie-latest.osm.pbf \
@@ -152,57 +219,74 @@ python3 tools/topo/make_tiles.py --pbf pomorskie-latest.osm.pbf --pbf kujawsko-p
    --name gdansk --title "Gdańsk 100 km" --center 54.35,18.65 --radius-km 100 --zooms 10-14 --out out --preview
 ```
 
-Rozmiar: Gdańsk 100 km, z10–z14 – szacunkowo 20–60 MB (morze i jednolite lasy zajmują prawie nic – identyczne kafelki są zapisane raz).
+Size: Gdańsk 100 km, z10–z14 – roughly 20–60 MB (sea and solid forest take almost nothing – identical tiles are stored once).
 
-### 2. Wgrywanie na kartę
+### 2. Putting it on the card
 
-* **Czytnik kart:** skopiuj katalog `maps` do katalogu głównego karty.
-* **Tryb USB (bez wyjmowania karty):** Menu → System → **Tryb USB – karta SD jako dysk**, podłącz USB-C do komputera. Karta pojawi się jako dysk „ParaNav”. Skopiuj `maps`, potem **wysuń dysk w komputerze** – ParaNav sam wróci do pracy i wczyta wszystko od nowa (albo KLAWISZ/BOOT długo). Działa też dla stref, punktów, terenu i lotów (`/logs` – zgrywanie IGC). Tryb USB jest niedostępny w locie; zapis lotu zostaje zamknięty.
+* **Card reader:** copy the `maps` folder to the root of the card.
+* **USB mode (without removing the card):** Menu → System → **USB mode – SD card as a drive**, connect USB-C to a computer. The card appears as a "ParaNav" drive. Copy `maps`, then **eject the drive on the computer** – ParaNav returns to normal operation and reloads everything (or KEY/BOOT long). Works for airspace, waypoints, terrain and flights too (`/logs` – download your IGC files). USB mode is not available in flight; the flight log is closed. When the mode starts, the device briefly disconnects from the computer and connects again (0.5.6) so the computer notices the "inserted card" and shows the drive; FANET and BlueFly are off meanwhile.
 
-Kilka obszarów na karcie (np. `maps/gdansk`, `maps/wyjazd`) – urządzenie samo wybiera ten, który obejmuje Twoją pozycję. SYSTEM → „Teren / mapa” pokazuje kafle terenu i nazwę aktywnej mapy.
+Several areas on the card (e.g. `maps/gdansk`, `maps/holiday`) – the device picks the one covering your position. SYSTEM → "Terrain / map" shows the terrain tiles and the name of the active map.
 
-## Budowanie
+## FANET – other pilots (LoRa 868 MHz)
 
-1. Zainstaluj [PlatformIO](https://platformio.org) (VS Code + rozszerzenie lub `pip install platformio`).
-2. `pio run -t upload` w katalogu projektu. Jeśli płytka nie wchodzi w tryb programowania: przytrzymaj BOOT, krótko RST, puść BOOT.
-3. Biblioteki LilyGO (epdiy, SensorLib, BQ27220) są dołączone w `lib/` – to te same wersje co w repozytorium producenta. NimBLE-Arduino 1.4.3 (Bluetooth) PlatformIO pobierze sam (`lib_deps`).
+The on-board SX1262 module speaks the open **FANET** protocol (868.2 MHz, LoRa SF7/250 kHz, [specification](https://github.com/3s1d/fanet-stm32/blob/master/Src/fanet/radio/protocol.txt)) – the one used by Skytraxx, XC Tracer, Naviter (FANET+), Burnair, Leaf, GXAirCom, SoftRF. **FLARM is not supported** (closed, encrypted protocol) – aircraft and gliders with FLARM only do not see ParaNav, and ParaNav does not see them.
 
-Alternatywnie arduino-cli (rdzeń esp32 2.0.14): `tools/build_arduino_cli.sh`.
+* **Transmitting:** position, GPS altitude, ground speed, climb rate and track every 5 s (in the air a "tracking" packet, aircraft type *paraglider*; on the ground "ground tracking"), the pilot name every 4 min – set it in `config.ini` as `pilot=First Last` (sent without accents; with the default "Pilot" no name is sent). Address: `FD` + a random 16-bit number stored in `config.ini` (`fanetId`) – shown on the SYSTEM and TRAFFIC screens.
+* **Visible online** (default YES): the "online tracking" bit – [OGN](https://www.glidernet.org) ground stations may show your position on the internet. Menu → FANET → Visible online.
+* **Display:** MAP and TOPO – arrows with height difference; **TRAFFIC** screen – list and track-up radar, tapping a pilot makes him the navigation target; status bar **FN n**.
+* **Warnings** (in flight only): closest point of approach predicted 60 s ahead, assuming constant tracks and speeds. *Caution* (TRAFFIC box in the top right of any screen): closer than the distance limit (default 300 m) and height limit (100 m), or such an approach predicted within 45 s. *Alarm* (TRAFFIC! bar with the clock position): half the limits or within 20 s. Limits and on/off: Menu → FANET.
+* **Internal antenna** – the range depends on where the device sits (cage metal, the pilot's body). Check on the ground with a friend, or on glidernet.org, that your position gets through.
 
-**USB od wersji z mapami:** firmware używa trybu USB-OTG (TinyUSB, `ARDUINO_USB_MODE=0`), bo tylko w nim karta SD może być dyskiem USB. Port szeregowy nadal działa (logi, wgrywanie przez `pio run -t upload`), ale w systemie to inne urządzenie COM niż wcześniej. Jeśli wgrywanie się nie uda (np. program zawiesił się przy starcie): przytrzymaj BOOT, krótko RST, puść BOOT i wgraj ponownie.
+> FANET is an aid to lookout, not a collision avoidance system: positions arrive every ~5 s and not everyone carries a transmitter. Keep a lookout.
 
-### Testy bez sprzętu
-* `tools/run_tests.sh` – testy jednostkowe (NMEA, Kalman, wiatr, parser OpenAir, aktywacje, kolizje ze strefami, IGC, .cup, teren, logika lotu, alarmy, przesyłanie plików, dekoder mapy TOPO).
-* `tools/topo/selftest.sh` – cała ścieżka mapy bez internetu: fikcyjny plik OSM → `make_tiles.py` → czytnik kafelków z firmware (każdy kafelek dekodowany i sprawdzany sumą CRC).
-* `tools/android_proto_test/run.sh` – test protokołu wysyłania plików: kod aplikacji (`Uploader.java`) rozmawia z kodem firmware (`FileReceiver`), z celowo gubionymi pakietami.
-* `tools/preview/layout_check.sh` – renderuje wszystkie ekrany, menu, alarmy i ekran startowy w sytuacjach normalnych, „nic nie działa” i ze skrajnymi wartościami (9999 m, -12.3 m/s, 999 km, długie nazwy stref i punktów...). Zgłasza każdy napis, który wychodzi poza ekran, nachodzi na inny napis albo przecina linię podziału.
-* `tools/preview/build.sh` – symuluje lot i renderuje wszystkie ekrany do PNG (`/tmp/preview`), ten sam kod UI co na urządzeniu.
+## Building
 
-## Do sprawdzenia na sprzęcie (pierwsze uruchomienie)
-1. **Orientacja** – jeśli obraz jest do góry nogami: Menu → Ekran i mapa → Obróć ekran o 180°.
-2. **Dotyk** – SYSTEM → „Dotyk (test)” pokazuje współrzędne; jeśli nie zgadzają się z miejscem dotknięcia, popraw mapowanie w `board.cpp: toScreen()`.
-3. **VCOM** – wartość z naklejki na taśmie wyświetlacza (domyślnie 1560 mV jak w firmware LilyGO).
-4. **Duchy na e-papierze** – szybkie odświeżanie (DU) co 1 s, pełne co `fullRefreshS` (domyślnie 60 s, 0 = wyłączone).
-5. **Barometr** – na ziemi wario powinno pokazywać ±0,1 m/s; QNH kalibruje się samo po złapaniu ≥6 satelitów.
+1. Install [PlatformIO](https://platformio.org) (VS Code + extension or `pip install platformio`).
+2. `pio run -t upload` in the project folder. If the board does not enter programming mode: hold BOOT, press RST briefly, release BOOT.
+3. The LilyGO libraries (epdiy, SensorLib, BQ27220) and RadioLib 6.5 (LoRa) are included in `lib/` – the same versions as in the manufacturer's repository. PlatformIO downloads NimBLE-Arduino 1.4.3 (Bluetooth) by itself (`lib_deps`).
 
-## Ograniczenia / dalsze kroki
-* Brak dźwięku wariometru (brak brzęczyka) – przygotowane ustawienie `varioSound`.
-* Plik IGC nie ma podpisu G (nie jest „walidowany” jak z certyfikowanego rejestratora). Do XContest zwykle wystarcza, na zawody z wymogiem walidacji – nie.
-* Wiatr wymaga zakrętów; w locie prostym pokazywana jest ostatnia wartość z wiekiem pomiaru.
-* Mapa TOPO: tylko północ u góry; mapy przez Wi-Fi z telefonu – następny etap (dziś: czytnik kart lub tryb USB).
+Alternatively arduino-cli (esp32 core 2.0.14): `tools/build_arduino_cli.sh`.
 
-## Struktura kodu
+**USB since the map version:** the firmware uses the USB-OTG mode (TinyUSB, `ARDUINO_USB_MODE=0`), because only then can the SD card be a USB drive. The serial port still works (logs, uploading with `pio run -t upload`), but it is a different COM device than before. If uploading fails (e.g. the program hangs at start): hold BOOT, press RST briefly, release BOOT and upload again.
+
+### Tests without hardware
+* `tools/run_tests.sh` – unit tests (NMEA, Kalman, wind, OpenAir parser, activations, airspace checks, IGC, .cup, terrain, flight logic, alerts, file transfer, TOPO map decoder, FANET coding and proximity rating).
+* `tools/topo/selftest.sh` – the whole map pipeline without internet: fictional OSM file → `make_tiles.py` → the firmware tile reader (every tile decoded and CRC-checked).
+* `tools/android_proto_test/run.sh` – file upload protocol test: the app code (`Uploader.java`) talks to the firmware code (`FileReceiver`), with deliberately lost packets.
+* `tools/android_planner_test/run.sh` – route planner helpers of the app (coordinates, `.cup` writing/reading, OpenAir parser) and a cross-check: a `.cup` written by the app is read by the firmware.
+* `tools/preview/layout_check.sh` – renders every screen, menu, alert and the boot screen in normal, "nothing works" and extreme situations (9999 m, -12.3 m/s, 999 km, long airspace and waypoint names...), in both languages. Reports every text that leaves the screen, overlaps another text or crosses a separator line.
+* `tools/preview/build.sh` – simulates a flight and renders all screens to PNG (`/tmp/preview`), with the same UI code as the device. `PARANAV_LANG=en` for English.
+
+## Restarts and crash reports
+
+Every start is logged in **`/logs/restarts.txt`** (reset reason, how long the previous run lasted, its last action, battery voltage). Every unexpected restart also gets a full report **`/logs/crash-NN.txt`**: reason (software error, watchdog, brownout, power lost without powering off), the state just before (battery, USB, screen, flying, FANET, lowest free memory), the last ~12 actions with times and – for software errors and watchdogs – the backtrace for decoding with `firmware.elf`. The report is written right after the SD card is mounted, before any data is loaded, so a crash while loading is reported too.
+
+After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **safe mode**: Bluetooth (BlueFly, phone), FANET and TOPO maps stay off for that run, so the device remains usable and the reports can be copied (e.g. in USB mode). The next start after 5 minutes of normal running is normal again.
+
+## Things to check on the hardware (first start)
+1. **Orientation** – if the picture is upside down: Menu → Display and map → Rotate screen 180°.
+2. **Touch** – tapping the left / right edge should change the screen; if it works the other way round or in the wrong place, fix the mapping in `board.cpp: toScreen()`.
+3. **VCOM** – the value from the sticker on the display ribbon (default 1560 mV as in the LilyGO firmware).
+4. **E-paper ghosting** – fast refresh (DU) every second, full refresh every `fullRefreshS` (default 60 s, 0 = off).
+5. **Barometer** – on the ground the vario should show ±0.1 m/s; QNH calibrates itself once ≥6 satellites are received.
+
+## Limitations / next steps
+* No vario sound (no buzzer) – the `varioSound` setting is prepared.
+* The IGC file has no G-record signature (not "validated" like a certified logger). Usually fine for XContest, not for competitions that require validation.
+* Wind needs turns; in straight flight the last value is shown with its age.
+* TOPO map: north up only; maps over Wi-Fi from a phone – next step (today: card reader or USB mode).
+
+## Code structure
 ```
-src/            sprzęt: main.cpp (zadania, logika 1 Hz, menu), board.cpp (e-papier, przyciski, dotyk, bateria, SD),
-                ms5611.cpp, gps.cpp, config.h (piny)
-lib/navcore/    przenośny rdzeń (kompiluje się też na PC): geo, nmea, vario (Kalman), wind, airspace (OpenAir),
-                terrain (HGT), topo (mapa TOPO), waypoints (.cup), logger (IGC/GPX), flight (logika lotu), alerts, settings,
-                ui/ (canvas, fonty, ekrany, menu)
-test/           testy jednostkowe (host)
-tools/          generator fontów, podgląd ekranów, skrypty budowania, topo/ (generator mapy TOPO)
-sd_card/        przykładowa zawartość karty
+src/            hardware: main.cpp (tasks, 1 Hz logic, menu), board.cpp (e-paper, buttons, touch, battery, SD),
+                ms5611.cpp, gps.cpp, fanet_radio.cpp (LoRa SX1262), usb_disk.cpp, config.h (pins)
+lib/navcore/    portable core (also builds on a PC): geo, nmea, vario (Kalman), wind, airspace (OpenAir),
+                terrain (HGT), topo (TOPO map), fanet (FANET protocol, traffic), waypoints (.cup), logger (IGC/GPX),
+                flight (flight logic), alerts, settings, i18n (TR("pl", "en") texts), ui/ (canvas, fonts, screens, menu, help)
+test/           unit tests (host)
+tools/          font generator, screen preview, build scripts, topo/ (TOPO map generator)
+sd_card/        example card contents
+android/        Android app (file upload via Bluetooth)
 ```
-Licencje: dane mapy TOPO – © OpenStreetMap contributors, ODbL; epdiy – LGPL-3.0, SensorLib – MIT, fonty DejaVu – licencja Bitstream Vera/DejaVu.
-=======
-# paranav
->>>>>>> 27bfddb68599795da26ee635efa77e9a471d3a94
+Licences: RadioLib – MIT; TOPO map data – © OpenStreetMap contributors, ODbL; epdiy – LGPL-3.0, SensorLib – MIT, DejaVu fonts – Bitstream Vera/DejaVu licence.

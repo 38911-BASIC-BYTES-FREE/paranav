@@ -1,4 +1,5 @@
 #include "usb_disk.h"
+#include "i18n.h"
 
 #include <Arduino.h>
 #include <SD.h>
@@ -6,6 +7,7 @@
 #if !ARDUINO_USB_MODE && CONFIG_TINYUSB_MSC_ENABLED
 #include "USB.h"
 #include "USBMSC.h"
+#include "tusb.h"
 
 namespace usbdisk {
 
@@ -38,6 +40,17 @@ static bool onStartStop(uint8_t, bool start, bool loadEject) {
 
 bool supported() { return true; }
 
+// The drive is registered at boot without media ("card reader without a card"). When the card is
+// inserted later, the Arduino MSC callbacks never report "medium changed", so Windows keeps its
+// cached empty drive and nothing appears. A short USB disconnect makes the computer enumerate the
+// device again and read the card from scratch (the serial port reconnects as well).
+static void reconnect() {
+    if (!tud_connected()) return;  // no computer: nothing to refresh
+    tud_disconnect();
+    delay(400);
+    tud_connect();
+}
+
 void init() {
     msc.vendorID("ParaNav");
     msc.productID("Karta SD");
@@ -53,16 +66,17 @@ bool start() {
     if (!sInit) init();
     size_t n = SD.numSectors(), sz = SD.sectorSize();
     if (!n || sz != 512) {
-        sErr = "brak karty SD";
+        sErr = TR("brak karty SD", "no SD card");
         return false;
     }
     if (!msc.begin((uint32_t)n, (uint16_t)sz)) {
-        sErr = "USB: błąd startu";
+        sErr = TR("USB: błąd startu", "USB: start error");
         return false;
     }
     sEjected = false;
     sActive = true;
     msc.mediaPresent(true);
+    reconnect();
     return true;
 }
 
@@ -70,6 +84,7 @@ void stop() {
     msc.mediaPresent(false);
     delay(50);  // let a transfer in progress finish
     sActive = false;
+    reconnect();
 }
 
 bool active() { return sActive; }
@@ -93,7 +108,7 @@ void stop() {}
 bool active() { return false; }
 bool hostConnected() { return false; }
 bool takeEjected() { return false; }
-const char* lastError() { return "niedostępne (USB Mode = hwcdc)"; }
+const char* lastError() { return TR("niedostępne (USB Mode = hwcdc)", "not available (USB Mode = hwcdc)"); }
 }  // namespace usbdisk
 
 #endif

@@ -20,5 +20,5 @@ private:
     void sendUbxValset8(uint32_t key, uint8_t val);
     void sendNmea(const char* body);
     nav::NmeaParser parser_;
-    const char* name_ = "brak";
+    const char* name_ = "–";
 };

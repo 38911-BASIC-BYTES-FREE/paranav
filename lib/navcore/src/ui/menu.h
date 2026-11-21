@@ -85,7 +85,7 @@ public:
     bool handleKey(Key k);
     bool handleTap(int x, int y);
     void draw(Canvas& c) const;
-    // Short description of where the user is (for crash breadcrumbs), e.g. "MENU>Paliwo>[Zużycie] edycja"
+    // Short description of where the user is (for crash breadcrumbs), e.g. "MENU>Fuel>[Fuel flow] edit"
     std::string describe() const;
     bool consumeDirty() {
         bool d = dirty_;
@@ -122,6 +122,9 @@ private:
     float editVal_ = 0;
     bool dirty_ = false;
     static constexpr int kRows = 8;
+    static constexpr int kArrowW = 76;  // touch scroll column on the right (only for long lists)
+    bool scrollable() const { return (int)cur()->children.size() > kRows; }
+    void scrollPage(int dir);
 public:
     static constexpr int kTextLines = 14;  // lines per help page
     // Word-wrap a help text (public for the layout checker)

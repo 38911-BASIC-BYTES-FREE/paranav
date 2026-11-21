@@ -1,0 +1,4 @@
+name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+"Windmill",WMIL,PL,5208.100N,02053.500E,115.0m,1,,,,""
+"Church",CHUR,PL,5203.900N,02055.800E,120.0m,1,,,,""
+"Field Landing",LFLD,PL,5205.400N,02048.300E,110.0m,3,,,,""

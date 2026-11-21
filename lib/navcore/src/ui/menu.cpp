@@ -1,4 +1,5 @@
 #include "menu.h"
+#include "../i18n.h"
 
 #include <algorithm>
 #include <cmath>
@@ -80,7 +81,7 @@ int Menu::pages() const { return (int)pageStart_.size(); }
 void Menu::drawText(Canvas& c) const {
     c.fillRect(0, 0, W, H, WHITE);
     c.fillRect(0, 0, W, 40, BLACK);
-    c.text(12, 30, "POMOC › " + textTitle_, font_sb, WHITE);
+    c.text(12, 30, TR("POMOC › ", "HELP › ") + textTitle_, font_sb, WHITE);
     char b[24];
     std::snprintf(b, sizeof b, "%d / %d", page_ + 1, pages());
     c.text(W - 12, 30, b, font_sb, WHITE, RIGHT);
@@ -92,7 +93,7 @@ void Menu::drawText(Canvas& c) const {
     }
     c.fillRect(0, H - 34, W, 34, WHITE);
     c.hline(0, H - 34, W, BLACK);
-    c.text(12, H - 9, "KLAWISZ: następna strona   BOOT: poprzednia   przytrzymaj: powrót", font_s, BLACK);
+    c.text(12, H - 9, TR("KLAWISZ: następna strona   BOOT: poprzednia   przytrzymaj: powrót", "KEY: next page   BOOT: previous   hold: back"), font_s, BLACK);
 }
 
 void Menu::open(std::shared_ptr<MenuItem> root) {
@@ -110,8 +111,8 @@ std::string Menu::describe() const {
     const Level& l = stack_.back();
     const auto& ch = l.item->children;
     if (l.sel >= 0 && l.sel < (int)ch.size()) s += ">[" + ch[l.sel].label + "]";
-    if (editing_) s += " edycja";
-    if (viewing_) s += " pomoc str." + std::to_string(page_ + 1);
+    if (editing_) s += TR(" edycja", " edit");
+    if (viewing_) s += TR(" pomoc str.", " help p.") + std::to_string(page_ + 1);
     return s;
 }
 
@@ -132,6 +133,13 @@ void Menu::adjustScroll() {
     Level& l = stack_.back();
     if (l.sel < l.scroll) l.scroll = l.sel;
     if (l.sel >= l.scroll + kRows) l.scroll = l.sel - kRows + 1;
+}
+
+void Menu::scrollPage(int dir) {
+    Level& l = stack_.back();
+    int n = (int)cur()->children.size();
+    l.scroll = std::max(0, std::min(n - kRows, l.scroll + dir * (kRows - 1)));
+    l.sel = std::max(l.scroll, std::min(l.scroll + kRows - 1, l.sel));  // keep the cursor visible for the buttons
 }
 
 void Menu::activate(int idx) {
@@ -230,6 +238,10 @@ bool Menu::handleTap(int x, int y) {
         return true;
     }
     Level& l = stack_.back();
+    if (scrollable() && x >= W - kArrowW) {  // touch scroll column: upper half = page up, lower = page down
+        if (y < kTop + 6 + kRows * kRowH) scrollPage(y < kTop + 6 + kRows * kRowH / 2 ? -1 : 1);
+        return true;
+    }
     int row = (y - kTop - 6) / kRowH;
     if (row < 0 || row >= kRows) return true;
     int idx = l.scroll + row;
@@ -252,7 +264,7 @@ void Menu::draw(Canvas& c) const {
     for (size_t i = 1; i < stack_.size(); i++) title += " › " + stack_[i].item->label;
     c.fillRect(0, 0, W, 40, BLACK);
     c.text(12, 30, title, font_sb, WHITE);
-    c.text(W - 12, 30, "◄ wstecz", font_sb, WHITE, RIGHT);
+    c.text(W - 12, 30, TR("◄ wstecz", "◄ back"), font_sb, WHITE, RIGHT);
 
     const Level& l = stack_.back();
     const auto& items = cur()->children;
@@ -260,18 +272,21 @@ void Menu::draw(Canvas& c) const {
         const MenuItem& it = items[l.sel];
         c.text(W / 2, 120, it.label, font_m, BLACK, CENTER);
         c.text(W / 2, 250, fmtNum(it, editVal_), font_xl, BLACK, CENTER);
-        c.rect(40, 310, 420, 70, BLACK, 3);
-        c.text(250, 358, "ANULUJ (BOOT długo)", font_sb, BLACK, CENTER);
-        c.rect(500, 310, 420, 70, BLACK, 3);
-        c.fillRect(500, 310, 420, 70, BLACK);
-        c.text(710, 358, "ZAPISZ (KLAWISZ długo)", font_sb, WHITE, CENTER);
+        c.roundRect(40, 310, 420, 70, 35, BLACK, 3);
+        c.text(250, 358, TR("ANULUJ (BOOT długo)", "CANCEL (BOOT long)"), font_sb, BLACK, CENTER);
+        c.fillRoundRect(500, 310, 420, 70, 35, BLACK);
+        c.text(710, 358, TR("ZAPISZ (KLAWISZ długo)", "SAVE (KEY long)"), font_sb, WHITE, CENTER);
         const char* bl[4] = {"– –", "–", "+", "+ +"};
-        for (int i = 0; i < 4; i++) {
-            c.rect(i * 240 + 10, 410, 220, 110, BLACK, 3);
+        for (int i = 0; i < 4; i++) {  // rounded buttons with a 4 px shadow
+            c.fillRoundRect(i * 240 + 14, 414, 220, 110, 16, BLACK);
+            c.fillRoundRect(i * 240 + 10, 410, 220, 110, 16, WHITE);
+            c.roundRect(i * 240 + 10, 410, 220, 110, 16, BLACK, 3);
             c.text(i * 240 + 120, 482, bl[i], font_l, BLACK, CENTER);
         }
         return;
     }
+    const bool sc = scrollable();
+    const int right = sc ? W - kArrowW - 8 : W;  // right edge of the list
     for (int r = 0; r < kRows; r++) {
         int idx = l.scroll + r;
         if (idx >= (int)items.size()) break;
@@ -280,10 +295,10 @@ void Menu::draw(Canvas& c) const {
         std::string val;
         if (it.kind == MenuItem::Number && it.get) val = fmtNum(it, it.get());
         else if (it.value) val = it.value();
-        int vw = val.empty() ? 0 : c.text(W - 20, y + 38, val, font_m, BLACK, RIGHT) + 24;
+        int vw = val.empty() ? 0 : c.text(right - 20, y + 38, val, font_m, BLACK, RIGHT) + 24;
         std::string lab = it.label;
         std::string suffix = it.kind == MenuItem::Submenu ? "  ›" : "";
-        int maxW = W - 2 * kListX - vw - Canvas::textWidth(suffix.c_str(), font_m);
+        int maxW = right - 2 * kListX - vw - Canvas::textWidth(suffix.c_str(), font_m);
         if (Canvas::textWidth(lab.c_str(), font_m) > maxW) {
             while (!lab.empty() && Canvas::textWidth((lab + ".").c_str(), font_m) > maxW) {
                 size_t i = lab.size() - 1;
@@ -293,18 +308,34 @@ void Menu::draw(Canvas& c) const {
             lab += ".";
         }
         c.text(kListX, y + 38, lab + suffix, font_m, BLACK);
-        c.hline(kListX, y + kRowH - 2, W - 2 * kListX, BLACK);
-        if (idx == l.sel) c.invertRect(0, y, W, kRowH - 3);
+        c.hline(kListX, y + kRowH - 2, right - 2 * kListX, BLACK);
+        if (idx == l.sel) c.invertRoundRect(4, y, right - 8, kRowH - 3, 12);
     }
-    // scroll indicator
-    if ((int)items.size() > kRows) {
-        int h = 440 * kRows / (int)items.size();
-        int y = kTop + 6 + 440 * l.scroll / (int)items.size();
-        c.fillRect(W - 6, y, 5, h, BLACK);
+    if (sc) {
+        // touch scroll column: page up / page down buttons with the position bar between them
+        const int x0 = W - kArrowW, y0 = kTop + 6, hh = kRows * kRowH;
+        const int bh = hh / 2 - 16, cx = x0 + kArrowW / 2;
+        int n = (int)items.size();
+        bool canUp = l.scroll > 0, canDown = l.scroll + kRows < n;
+        for (int k = 0; k < 2; k++) {
+            int by = k == 0 ? y0 : y0 + hh - bh;
+            bool en = k == 0 ? canUp : canDown;
+            c.roundRect(x0 + 2, by, kArrowW - 6, bh, 14, BLACK, en ? 3 : 1);
+            int ty = by + bh / 2, s = 22;
+            Pt tri[3] = {{cx - s, k == 0 ? ty + s / 2 : ty - s / 2}, {cx + s, k == 0 ? ty + s / 2 : ty - s / 2},
+                         {cx, k == 0 ? ty - s / 2 - 4 : ty + s / 2 + 4}};
+            if (en) c.fillPolygon(tri, 3, BLACK);
+            else c.polyline(tri, 3, BLACK, 1, true);
+        }
+        // position bar between the buttons: the visible part of the list
+        int gy = y0 + bh + 8, gw = kArrowW - 10;
+        c.hline(x0 + 4, gy + 8, gw, BLACK);
+        int p0 = gw * l.scroll / n, p1 = gw * std::min(n, l.scroll + kRows) / n;
+        c.fillRect(x0 + 4 + p0, gy + 3, std::max(4, p1 - p0), 11, BLACK);
     }
     c.fillRect(0, H - 34, W, 34, WHITE);
     c.hline(0, H - 34, W, BLACK);
-    c.text(12, H - 9, "KLAWISZ: dalej / przytrzymaj = wybierz     BOOT: wstecz / przytrzymaj = wyjdź", font_s, BLACK);
+    c.text(12, H - 9, TR("KLAWISZ: dalej / przytrzymaj = wybierz     BOOT: wstecz / przytrzymaj = wyjdź", "KEY: next / hold = select     BOOT: back / hold = exit"), font_s, BLACK);
 }
 
 }  // namespace ui
