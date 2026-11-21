@@ -59,6 +59,40 @@ Adres 0x77 (CSB=0) lub 0x76 – oba są wykrywane automatycznie.
 
 Wskazówki montażu: czujnik jest **wrażliwy na światło** – przykryj go kawałkiem gąbki/pianki, nie wystawiaj na strumień powietrza ze śmigła, a obudowa powinna mieć mały otwór wyrównujący ciśnienie.
 
+![Schemat podłączenia GY-63 do LilyGO T5 S3 Pro](docs/hardware/gy63_wiring_pl.svg)
+
+#### Przewód JST-SH przylutowany do GY-63 – krok po kroku
+Potrzebny jest przewód **JST-SH 4 pin, raster 1,0 mm** (sprzedawany jako QWIIC / STEMMA QT) – z wtyczką z jednej strony albo dwustronny, przecięty na pół. Wystarczy 5–10 cm.
+
+1. **Sprawdź kolory miernikiem.** Standard QWIIC: pin 1 = czarny GND, pin 2 = czerwony 3V3, pin 3 = niebieski SDA, pin 4 = żółty SCL. Tanie przewody bywają inaczej kolorowe – liczy się pin we wtyczce, nie kolor. Pin 1 gniazda jest oznaczony na płytce.
+2. **Przygotuj koniec:** odetnij, zdejmij ok. 2 mm izolacji z każdej żyły, skręć i pobiel cyną. Załóż na przewód kawałki koszulki termokurczliwej.
+3. **Przylutuj do padów GY-63:**
+
+   | JST-SH | kolor | T5 S3 Pro | GY-63 |
+   |---|---|---|---|
+   | 1 | czarny | GND | **GND** |
+   | 2 | czerwony | 3V3 | **VCC** |
+   | 3 | niebieski | SDA (GPIO39) | **SDA** |
+   | 4 | żółty | SCL (GPIO40) | **SCL** |
+
+   **CSB, SDO i PS zostaw niepodłączone.** PS jest na module podciągnięty do VCC (tryb I²C), CSB wybiera adres 0x77/0x76 – firmware sprawdza oba. Kolejność padów bywa różna w różnych partiach modułów: kieruj się opisem na płytce, nie pozycją na rysunku.
+4. **Opcjonalnie** przylutuj kondensatory 10 µF i 100 nF między VCC a GND, jak najbliżej czujnika – zmniejszają zakłócenia od pełnego odświeżenia e-papieru.
+5. **Zabezpiecz:** obkurcz koszulki, a przewód przy module unieruchom kroplą kleju na gorąco (odciążenie lutów od drgań silnika).
+6. **Podłącz wtyczkę** do gniazda QWIIC i włącz urządzenie. Na ekranie startowym powinno pojawić się `[OK] Barometr na kablu MS5611 (adres 0x77)` (albo 0x76), a na ekranie SYSTEM – „Barometr: kabel …” i adres 77/76 na liście I²C. Czujnik można też podłączyć przy włączonym urządzeniu – jest sprawdzany co 10 s.
+
+Zasilanie to **3,3 V z gniazda QWIIC – nigdy 5 V**. Przewód prowadź krótko i z dala od taśmy wyświetlacza.
+
+### Plecki z komorą na barometr (wydruk 3D)
+Plik do druku: [`hardware/Lilygo_T5_cover_for_baro.stl`](hardware/Lilygo_T5_cover_for_baro.stl) – „plecki” do LilyGO T5 E-Paper S3 Pro, dopasowane do modułu **GY-63**.
+
+![Podgląd pleców z komorą na GY-63](docs/hardware/cover_for_baro_pl.png)
+
+* wymiary ok. **52 × 71,4 × 12 mm**, płyta 1 mm,
+* w środku **komora na moduł GY-63**; w bocznej ściance komory są **trzy małe okienka** – czujnik mierzy ciśnienie otoczenia, więc nie zaklejaj ich – oraz większy prostokątny otwór,
+* w płycie dwa otwory Ø 1,5 mm (rozstaw ok. 41 mm).
+
+Wskazówki do druku: najłatwiej drukować **płytą do stołu** (model trzeba w slicerze obrócić o 180°); sprawdź w podglądzie slicera, czy wewnętrzne półki komory nie potrzebują podpór. PETG/ASA zniosą słońce w kokpicie lepiej niż PLA. Moduł w komorze przykryj kawałkiem cienkiej pianki (światło zakłóca MS5611), nie zasłaniając okienek.
+
 ### Barometr: kabel, BlueFly albo bez
 Jeden firmware obsługuje automatycznie trzy przypadki – źródło wybierane jest na bieżąco:
 1. **MS5611 na kablu QWIIC** – jeśli odpowiada (sprawdzany co 10 s, można go podłączyć po włączeniu),
@@ -285,7 +319,9 @@ lib/navcore/    przenośny rdzeń (kompiluje się też na PC): geo, nmea, vario 
                 terrain (HGT), topo (mapa TOPO), fanet (protokół FANET, ruch), waypoints (.cup), logger (IGC/GPX), flight (logika lotu), alerts, settings,
                 ui/ (canvas, fonty, ekrany, menu)
 test/           testy jednostkowe (host)
-tools/          generator fontów, podgląd ekranów, skrypty budowania, topo/ (generator mapy TOPO)
+tools/          generator fontów, podgląd ekranów, skrypty budowania, topo/ (generator mapy TOPO), docs/ (schematy do README)
 sd_card/        przykładowa zawartość karty
+hardware/       pliki do druku 3D (plecki z komorą na GY-63)
+docs/hardware/  schemat podłączenia GY-63, podgląd wydruku (generowane przez tools/docs/)
 ```
 Licencje: RadioLib – MIT; dane mapy TOPO – © OpenStreetMap contributors, ODbL; epdiy – LGPL-3.0, SensorLib – MIT, fonty DejaVu – licencja Bitstream Vera/DejaVu.
