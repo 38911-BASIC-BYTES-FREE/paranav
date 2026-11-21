@@ -21,6 +21,11 @@ What is drawn (aimed at a paramotor pilot - obstacles first):
   power lines (line with cross ticks), wind turbines, masts/towers/chimneys (+ height),
   aerodromes/airstrips + runways, main roads, railways, rivers, place names.
 
+Far zooms (z10-z11) use a simplified "obstacles" view so the overview stays readable on the e-paper:
+  no forest, towns only (merged built-up areas, outline + sparse hatch, villages dropped), water, main
+  roads (z10: motorway/trunk, z11: + primary), no railways, power lines >= 220 kV (unknown voltage kept),
+  wind farms as one symbol with the number of turbines (single turbines and pairs stay as dots).
+
 .pak file format (little endian), one file per zoom level:
   0  char[4] "PNMP"      4 u16 version=1     6 u8 zoom   7 u8 0
   8  u32 x0  12 u32 y0  16 u16 nx  18 u16 ny     (tile range covered by the index)
@@ -388,7 +393,7 @@ _PAT = {}
 
 
 def pattern(kind, ox, oy, w, h):
-    k = (kind, ox % 8, oy % 8, w, h)
+    k = (kind, ox % 16, oy % 16, w, h)
     if k not in _PAT:
         _PAT[k] = _pattern(kind, ox, oy, w, h)
     return _PAT[k]
@@ -406,6 +411,11 @@ def _pattern(kind, ox, oy, w, h):
         return ((Xg < 2) & (Yg < 2)) | ((Xg >= 4) & (Xg < 6) & (Yg >= 4) & (Yg < 6))
     if kind == "urban":  # cross-hatch
         return ((Xg + Yg) % 8 == 0) | ((Xg - Yg) % 8 == 0)
+    if kind == "urban_sparse":  # cross-hatch every 16 px (towns in the z10-11 overview)
+        X16 = (np.arange(w) + ox) % 16
+        Y16 = (np.arange(h) + oy) % 16
+        Xs, Ys = np.meshgrid(X16, Y16)
+        return ((Xs + Ys) % 16 == 0) | ((Xs - Ys) % 16 == 0)
     raise ValueError(kind)
 
 
@@ -432,21 +442,80 @@ def along(coords, step, phase=0.0):
     return out
 
 
+def max_kv(voltage):
+    """OSM voltage tag ("220000", "400000;220000", "110 kV") -> highest value in kV, None if unknown."""
+    if not voltage:
+        return None
+    best = None
+    for part in str(voltage).replace(",", ";").split(";"):
+        t = part.lower().replace("kv", "").replace("v", "").strip()
+        try:
+            v = float(t)
+        except ValueError:
+            continue
+        if "kv" not in part.lower() and v >= 1000:
+            v /= 1000.0
+        best = v if best is None else max(best, v)
+    return best
+
+
+def wind_farms(points, scale, dist_px, min_count):
+    """Groups wind turbines closer than dist_px (single linkage) at this zoom.
+    -> (farms [(x_world, y_world, count)], set of point indices drawn as part of a farm)"""
+    idx = [i for i, p in enumerate(points) if p["cls"] == "wind"]
+    if not idx or dist_px <= 0:
+        return [], set()
+    xy = np.array([(points[i]["x"] * scale, points[i]["y"] * scale) for i in idx])
+    parent = list(range(len(idx)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    grid = {}
+    for k, (x, y) in enumerate(xy):
+        grid.setdefault((int(x // dist_px), int(y // dist_px)), []).append(k)
+    d2 = dist_px * dist_px
+    for (gx, gy), ks in grid.items():
+        for nx_ in (gx - 1, gx, gx + 1):
+            for ny_ in (gy - 1, gy, gy + 1):
+                for b in grid.get((nx_, ny_), ()):
+                    for a in ks:
+                        if a < b and (xy[a, 0] - xy[b, 0]) ** 2 + (xy[a, 1] - xy[b, 1]) ** 2 <= d2:
+                            ra, rb = find(a), find(b)
+                            if ra != rb:
+                                parent[rb] = ra
+    groups = {}
+    for k in range(len(idx)):
+        groups.setdefault(find(k), []).append(k)
+    farms, members = [], set()
+    for ks in groups.values():
+        if len(ks) < min_count:
+            continue
+        cx, cy = xy[ks].mean(axis=0)
+        farms.append((cx / scale, cy / scale, len(ks)))
+        members.update(idx[k] for k in ks)
+    return farms, members
+
+
 # per zoom style --------------------------------------------------------------
 
 def style(z):
     """line widths / visibility per zoom"""
     s = {
         "road1": 5 if z >= 13 else (4 if z >= 11 else 3),
-        "road2": 3 if z >= 11 else 2,
+        "road2": 3 if z >= 12 else (2 if z == 11 else 0),
         "road3": (3 if z >= 13 else 2) if z >= 11 else 0,
         "road4": (2 if z >= 13 else 1) if z >= 12 else 0,
-        "rail": 1 if z >= 11 else 0,
-        "river": 2 if z >= 11 else 1,
+        "rail": 1 if z >= 12 else 0,
+        "river": 2,
         "stream": 1 if z >= 13 else 0,
-        "power": 2 if z >= 11 else 1,
+        "power": 2,
+        "power_min_kv": 0 if z >= 12 else 220,  # z10-11: main transmission lines only
         "power_minor": (2 if z >= 14 else 1) if z >= 12 else 0,
-        "power_tick": 18 if z >= 13 else 24,
+        "power_tick": 18 if z >= 13 else (24 if z >= 12 else 60),
         "runway": z >= 12,
         "wind": z >= 10,
         "mast": z >= 11,
@@ -456,6 +525,13 @@ def style(z):
         "town": z >= 10,
         "aero_label": z >= 10,
         "min_area_px": 6.0 if z <= 11 else 3.0,
+        # z10-11 "obstacles" view
+        "forest": z >= 12,
+        "urban_merge_px": 0 if z >= 12 else 3,     # close gaps between built-up patches (px)
+        "urban_min_px": 0 if z >= 12 else 250,     # then keep only towns (area in px^2)
+        "urban_sparse": z <= 11,                   # outline + sparse hatch instead of the dense one
+        "wind_farm_px": 0 if z >= 12 else 40,      # turbines closer than this form one wind farm symbol
+        "wind_farm_min": 3,
     }
     return s
 
@@ -463,7 +539,7 @@ def style(z):
 # ----------------------------------------------------------------------------- labels
 
 
-def place_labels(data, z, fonts, draw_probe):
+def place_labels(data, z, fonts, draw_probe, farms=()):
     """Global label placement for one zoom (so labels are identical on neighbouring tiles).
     Returns list of (x, y, text, font, anchor) in global pixel coords."""
     st = style(z)
@@ -487,6 +563,8 @@ def place_labels(data, z, fonts, draw_probe):
                 cands.append((90, x, y, txt, fonts.get(19, True), "lm", 15))
         elif cls in ("mast", "wind") and st["height_labels"] and p["height"] and p["height"] >= 25:
             cands.append((30, x, y, f"{int(round(p['height']))}", fonts.get(16), "lm", 11))
+    for fx, fy, cnt in farms:  # "x28" next to a wind farm symbol
+        cands.append((85, fx * scale, fy * scale, f"×{cnt}", fonts.get(19, True), "lm", 17))
     cands.sort(key=lambda c: -c[0])
     placed, boxes = [], {}
     G = 64
@@ -559,19 +637,25 @@ def render_meta(data, z, mx, my, nt, trees, labels, fonts):
         return np.asarray(img) > 0
 
     water = poly_mask("water")
-    forest = poly_mask("forest")
+    forest = poly_mask("forest") if st["forest"] else np.zeros((H, W), bool)
     urban = poly_mask("urban")
 
-    black = np.zeros((H, W), bool)
-    black |= pattern("forest", ox, oy, W, H) & forest & ~water & ~urban
-    black |= pattern("urban", ox, oy, W, H) & urban & ~water
-    black |= pattern("water", ox, oy, W, H) & water
     # outlines: shoreline (solid), built-up edge
     def edges(m):
         e = np.zeros_like(m)
         e[1:, :] |= m[1:, :] != m[:-1, :]
         e[:, 1:] |= m[:, 1:] != m[:, :-1]
         return e & m
+
+    black = np.zeros((H, W), bool)
+    black |= pattern("forest", ox, oy, W, H) & forest & ~water & ~urban
+    if st["urban_sparse"]:  # z10-11: towns as an outline (2 px) with a sparse hatch
+        black |= pattern("urban_sparse", ox, oy, W, H) & urban & ~water
+        e1 = edges(urban)
+        black |= (e1 | edges(urban & ~e1)) & ~water
+    else:
+        black |= pattern("urban", ox, oy, W, H) & urban & ~water
+    black |= pattern("water", ox, oy, W, H) & water
     black |= edges(water)
     if z >= 12:
         black |= edges(urban)
@@ -670,8 +754,23 @@ def render_meta(data, z, mx, my, nt, trees, labels, fonts):
                 if cls == "power" and z >= 12:  # pylon dot
                     d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=0)
 
+    # wind farms (z10-11): one symbol per farm, its turbines are not drawn one by one
+    in_farm = trees.get("wind_in_farm", set())
+    for fx, fy, _cnt in trees.get("wind_farms", ()):
+        px, py = fx * scale - ox, fy * scale - oy
+        if px < -30 or py < -30 or px > W + 30 or py > H + 30:
+            continue
+        r = 12
+        d.ellipse([px - r - 3, py - r - 3, px + r + 3, py + r + 3], fill=255)
+        d.ellipse([px - r, py - r, px + r, py + r], outline=0, width=2)
+        for a in (90, 210, 330):
+            ar = math.radians(a)
+            d.line([(px, py), (px + (r - 2) * math.cos(ar), py - (r - 2) * math.sin(ar))], fill=0, width=3)
+
     # point symbols
-    for p in data.points:
+    for i_pt, p in enumerate(data.points):
+        if i_pt in in_farm:
+            continue
         px, py = p["x"] * scale - ox, p["y"] * scale - oy
         if px < -20 or py < -20 or px > W + 20 or py > H + 20:
             continue
@@ -840,10 +939,21 @@ def build(args):
 
         # simplified geometry + spatial index for this zoom
         tol = 0.4 / scale
-        min_area = style(z)["min_area_px"] / (scale * scale)
+        st = style(z)
+        min_area = st["min_area_px"] / (scale * scale)
         trees = {}
         for cls, geoms in data.polys.items():
+            if cls == "forest" and not st["forest"]:
+                trees[cls] = (None, [])
+                continue
             gs = [g for g in geoms if g.area >= min_area]
+            if cls == "urban" and st["urban_merge_px"] and gs:
+                # z10-11: glue neighbouring built-up patches into towns, then drop villages
+                r = st["urban_merge_px"] / scale
+                merged = unary_union([g.buffer(r, quad_segs=2) for g in gs]).buffer(-r, quad_segs=2)
+                min_town = st["urban_min_px"] / (scale * scale)
+                gs = [g for g in getattr(merged, "geoms", [merged])
+                      if isinstance(g, Polygon) and not g.is_empty and g.area >= min_town]
             if gs:
                 arr = shapely.simplify(np.array(gs, dtype=object), tol, preserve_topology=True)
                 arr = [g for g in arr if isinstance(g, Polygon) and not g.is_empty]
@@ -853,6 +963,10 @@ def build(args):
         for cls, items in data.lines.items():
             if cls == "coast":
                 continue
+            if cls == "power" and st["power_min_kv"]:
+                # z10-11: main transmission lines only; a line without a voltage tag is kept (obstacle)
+                items = [(g, a) for g, a in items
+                         if max_kv(a.get("voltage")) is None or max_kv(a.get("voltage")) >= st["power_min_kv"]]
             if items:
                 arr = shapely.simplify(np.array([g for g, _ in items], dtype=object), tol)
                 trees[cls] = (shapely.STRtree(arr), list(arr))
@@ -860,7 +974,11 @@ def build(args):
             else:
                 trees[cls] = (None, [])
                 trees[cls + ":attr"] = []
-        labels = place_labels(data, z, fonts, probe)
+        farms, in_farm = wind_farms(data.points, scale, st["wind_farm_px"], st["wind_farm_min"])
+        trees["wind_farms"], trees["wind_in_farm"] = farms, in_farm
+        if farms:
+            print(f"  z{z}: {len(farms)} wind farm symbol(s) for {len(in_farm)} turbines", flush=True)
+        labels = place_labels(data, z, fonts, probe, farms)
 
         index = [(0xFFFFFFFF, 0)] * (nx * ny)
         blobs, dedup = [], {}

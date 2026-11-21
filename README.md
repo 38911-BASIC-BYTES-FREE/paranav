@@ -280,6 +280,15 @@ The **TOPO** screen (after MAP) shows a topographic map designed for e-paper: bl
 
 Overlays: your position and track, flight track, HOME, line to the target, waypoints and landing fields from `.cup`, other pilots (FANET) and **airspace outlines only** (details on the AIRSPACE screen and in the alerts). Corners: altitude/AGL, ground speed/track, vario/wind, nearest airspace. Tap the upper half of the map to zoom in, the lower half to zoom out (z10 ≈ 90 km screen width, z14 ≈ 6 km). The map moves in steps (when you are about 1/3 of the screen away from the centre) so that the e-paper does not redraw everything every second.
 
+**The far view (z10–z11) is simplified** – so the e-paper shows obstacles rather than "noise" from hundreds of small woods:
+* **no forest**,
+* **towns only** – neighbouring built-up patches are merged, villages are dropped; a town is an outline with a sparse hatch,
+* water as usual, **roads:** z10 motorways and expressways, z11 also primary roads; no railways,
+* **power lines from 220 kV** (a line without a voltage in OSM is drawn too), ticks every 60 px,
+* **a wind farm = one symbol with the number of turbines** (e.g. "×28"); single turbines and pairs stay as dots.
+
+From z12 on the map shows everything as in the table above. This is a generator change – regenerate the map to see it.
+
 > The OSM-based map is an orientation aid, **not an aeronautical chart** – power lines and obstacles may be incomplete.
 
 ### 1. Making the map
@@ -363,6 +372,9 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 ## Version history
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
+
+### Next version (in progress)
+* TOPO map: simplified far view (z10–z11) – no forest, towns only, main roads, power lines from 220 kV, wind farms as one symbol with the number of turbines. Requires regenerating the maps.
 
 ### 0.5.8 – 21 Nov
 * **Fixed the UI getting slower over time** – after 10–20 minutes screen changes and reactions to buttons and touch became slow. The cause was a more and more fragmented PSRAM heap; short-lived objects now use internal RAM and drawing buffers are reused.

@@ -280,6 +280,15 @@ Ekran **TOPO** (po MAPIE) pokazuje mapę topograficzną przygotowaną specjalnie
 
 Na mapę nakładane są: Twoja pozycja i kurs, ślad, START, linia do celu, punkty i lądowiska z `.cup` oraz **tylko kontury** stref (szczegóły – ekran STREFY i alarmy). W rogach: wysokość/AGL, prędkość/kurs, vario/wiatr, najbliższa strefa. Dotyk górnej połowy mapy – przybliż, dolnej – oddal (z10 ≈ 90 km szerokości ekranu, z14 ≈ 6 km). Mapa przesuwa się skokami (gdy odlecisz od środka o ok. 1/3 ekranu), żeby e-papier nie przerysowywał wszystkiego co sekundę.
 
+**Widok z daleka (z10–z11) jest uproszczony** – żeby na e-papierze było widać przeszkody, a nie „szum” z setek skrawków lasu:
+* **bez lasów**,
+* **tylko miasta** – sąsiadujące zabudowania są sklejane, wioski pomijane; miasto to kontur z rzadką kratką,
+* woda jak zwykle, **drogi:** na z10 autostrady i ekspresówki, na z11 dodatkowo drogi główne; bez kolei,
+* **linie energetyczne od 220 kV** (linia bez podanego w OSM napięcia też jest rysowana), kreski co 60 px,
+* **farma wiatrowa = jeden znak z liczbą wiatraków** (np. „×28”); pojedyncze wiatraki i pary nadal jako kropki.
+
+Od z12 mapa pokazuje wszystko jak w tabeli wyżej. Zmiana dotyczy generatora – żeby ją zobaczyć, wygeneruj mapę od nowa.
+
 > Mapa z OSM jest pomocą orientacyjną, **nie mapą lotniczą** – linie energetyczne i przeszkody mogą być niekompletne.
 
 ### 1. Przygotowanie mapy
@@ -363,6 +372,9 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 ## Historia wersji
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
+
+### Następna wersja (w przygotowaniu)
+* Mapa TOPO: uproszczony widok z daleka (z10–z11) – bez lasów, tylko miasta, główne drogi, linie od 220 kV, farmy wiatrowe jako jeden znak z liczbą wiatraków. Wymaga ponownego wygenerowania map.
 
 ### 0.5.8 – 21.11
 * **Naprawione narastające spowolnienie** – po kilkunastu minutach pracy interfejs zwalniał (wolne przejścia między ekranami, opóźniona reakcja na przyciski i dotyk). Przyczyną była coraz bardziej poszatkowana pamięć PSRAM; krótkotrwałe obiekty trafiają teraz do pamięci wewnętrznej, a bufory rysowania są używane ponownie.
