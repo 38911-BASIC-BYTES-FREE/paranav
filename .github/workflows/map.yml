@@ -48,11 +48,33 @@ jobs:
         run: |
           mkdir -p osm
           IFS=',' read -ra R <<< "${{ inputs.regions }}"
+          # Geofabrik moved sub-region files into sub-folders (europe/poland/pomorskie-latest.osm.pbf ->
+          # europe/poland/pomorskie/pomorskie-latest.osm.pbf): try both, then look the region up in the
+          # official index (index-v1-nogeom.json, field urls.pbf). "-latest" redirects to the dated file.
+          G=https://download.geofabrik.de
           for r in "${R[@]}"; do
             r="$(echo "$r" | xargs)"
-            f="osm/$(basename "$r").osm.pbf"
+            b="$(basename "$r")"
+            f="osm/$b.osm.pbf"
             echo "== $r"
-            curl -fL --retry 3 -o "$f" "https://download.geofabrik.de/$r-latest.osm.pbf"
+            if curl -fL --retry 3 -o "$f" "$G/$r-latest.osm.pbf"; then :
+            elif curl -fL --retry 3 -o "$f" "$G/$r/$b-latest.osm.pbf"; then :
+            else
+              [ -f osm/index.json ] || curl -fsSL --retry 3 -o osm/index.json "$G/index-v1-nogeom.json"
+              u="$(python3 - "$b" <<'PY'
+          import json, sys
+          want = sys.argv[1]
+          for ft in json.load(open("osm/index.json"))["features"]:
+              p = ft["properties"]
+              if p.get("id") == want or p.get("urls", {}).get("pbf", "").endswith("/" + want + "-latest.osm.pbf"):
+                  print(p["urls"]["pbf"])
+                  break
+          PY
+              )"
+              [ -n "$u" ] || { echo "::error::Region $r not found on download.geofabrik.de"; exit 1; }
+              echo "   -> $u"
+              curl -fL --retry 3 -o "$f" "$u"
+            fi
             ls -l "$f"
           done
       - name: Render tiles
