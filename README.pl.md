@@ -10,6 +10,10 @@ Firmware dla **LilyGO T5 E-Paper S3 Pro** (ESP32-S3, e-papier 4,7″ 960×540, G
 
 ParaNav to komputer lotu do motoparalotni, zbudowany na gotowej płytce z dużym ekranem e-papier (czytelnym w pełnym słońcu, prawie bez poboru prądu, gdy obraz stoi). Zastępuje w kokpicie wariometr, nawigację GPS, kalkulator paliwa i ostrzegacz stref – wszystko na jednym ekranie, obsługiwane dwoma przyciskami (w rękawicach) albo dotykiem.
 
+| Ekran LOT | Ekran MAPA |
+|:---:|:---:|
+| <img src="docs/screens/pl/0_LOT.png" width="100%" alt="Ekran LOT"> | <img src="docs/screens/pl/1_MAPA.png" width="100%" alt="Ekran MAPA"> |
+
 **W locie pokazuje:**
 * **wysokość i wariometr** – z barometru na kablu albo z BlueFlyVario przez Bluetooth (bez barometru: z GPS); wysokość nad startem i nad terenem, średnie wznoszenie, zysk w kominie,
 * **wiatr** – wyliczany sam z kilku zakrętów, bez żadnych czujników,
@@ -103,6 +107,8 @@ Zmiana źródła restartuje filtr vario (bez fałszywego skoku), a utrata barome
 
 **Czujnik na kablu a pełne odświeżenie ekranu (0.5.2):** zasilanie wysokiego napięcia e-papieru zakłóca MS5611 na kablu w czasie pełnego odświeżenia (skok wysokości ok. 2 m, ±0,5 m/s na vario). Na czas odświeżenia i 1 s po nim vario pomija odczyty z kabla i liczy dalej z ostatniego wznoszenia; pojedyncze odczyty odbiegające od prognozy o ponad 1,5 m też są odrzucane (skok trwający 0,3 s jest uznawany za prawdziwy). Ekran SYSTEM pokazuje przy ciśnieniu `F a/b`: przeczekane odświeżenia / odrzucone odczyty. Sprzętowo pomaga 10 µF + 100 nF między VCC a GND przy czujniku i krótki kabel z dala od taśmy wyświetlacza.
 
+<p align="center"><img src="docs/screens/pl/8_SYSTEM.png" width="60%" alt="Ekran SYSTEM – barometr (F a/b), pamięć (RAM/PSRAM, „fr”) i czas rysowania („rys.”)"><br><sub>Ekran SYSTEM – barometr (F a/b), pamięć (RAM/PSRAM, „fr”) i czas rysowania („rys.”)</sub></p>
+
 ### Przyciski
 Na schemacie IO48 to linia wyświetlacza, a przycisk użytkownika **S3 jest podłączony przez ekspander PCA9535 (IO1_2)**. Drugim przyciskiem jest **BOOT (GPIO0)**.
 
@@ -117,9 +123,17 @@ Na schemacie IO48 to linia wyświetlacza, a przycisk użytkownika **S3 jest pod�
 
 **Włączanie / wyłączanie:** włącza przycisk PWR na płytce albo podłączenie USB. Wyłączanie: **przytrzymaj oba przyciski (KLAWISZ + BOOT) przez 3 s** (po 1 s pojawia się napis „WYŁĄCZANIE…”, puszczenie anuluje) albo Menu → *Wyłącz urządzenie* → *TAK*. Lot zostaje zapisany i zamknięty, a na ekranie zostaje napis „WYŁĄCZONY”. Układ ładowania BQ25896 odcina wtedy baterię. **Przy podłączonym USB wyłączenie nie działa**, bo tak działa ten układ, a nie firmware.
 
+| Oba przyciski przytrzymane – wyłączanie | Urządzenie wyłączone |
+|:---:|:---:|
+| <img src="docs/screens/pl/C_power_hint.png" width="100%" alt="Oba przyciski przytrzymane – wyłączanie"> | <img src="docs/screens/pl/D_power_off.png" width="100%" alt="Urządzenie wyłączone"> |
+
 Dotyk (gdy masz gołe palce): pasek u góry = menu, lewa krawędź = poprzedni ekran, prawa = następny, na MAPIE środek = zmiana skali, na NAWIGACJI = zmiana celu, na PALIWIE = przyciski ±0,5 l / pełny bak / silnik. W menu: dotknij pozycji, aby ją wybrać; długie listy mają po prawej duże przyciski **▲ / ▼** (strona w górę / w dół).
 
 **Odświeżanie menu:** menu, pomoc i podsumowanie lotu są statyczne – przerysowują się tylko po naciśnięciu przycisku lub dotknięciu (bez odświeżania co sekundę i bez pełnego odświeżania co minutę). Pełne odświeżenie (mignięcie) jest przy otwarciu i zamknięciu menu oraz po każdych 20 ruchach w menu, więc nie zbierają się ślady poprzednich obrazów.
+
+| Menu | Edycja wartości w menu |
+|:---:|:---:|
+| <img src="docs/screens/pl/9_menu.png" width="100%" alt="Menu"> | <img src="docs/screens/pl/9b_menu_edit.png" width="100%" alt="Edycja wartości w menu"> |
 
 ### Zasilanie USB: nawigacja, ładowanie albo pliki
 Po pojawieniu się zasilania USB ParaNav pyta, co robić (jak kamery sportowe): **NAWIGACJA** (normalna praca, np. z powerbankiem w locie), **ŁADOWANIE** (statyczny ekran baterii: nawigacja wstrzymana, FANET i BlueFly wyłączone, ekran odświeża się tylko przy zmianie procentów) albo **PLIKI** (tryb USB – tylko gdy po drugiej stronie kabla jest komputer). Dotknij przycisku albo KLAWISZ krótko = następny / długo = wybierz.
@@ -128,7 +142,9 @@ Po pojawieniu się zasilania USB ParaNav pyta, co robić (jak kamery sportowe): 
 * **W locie pytanie się nie pojawia** – podłączony w locie powerbank po prostu zasila urządzenie. Po restarcie z powodu błędu (watchdog, panic, brownout) urządzenie od razu wraca do nawigacji.
 * Wyjście z ładowania: dotknij ekranu, przytrzymaj KLAWISZ albo **odłącz USB** → rusza nawigacja. Ręcznie: Menu → System → *Tryb ładowania*.
 
-Podglądy: `docs/screens/pl/V_usb_pytanie.png`, `W_ladowanie.png`.
+| Pytanie po podłączeniu USB | Tryb ładowania |
+|:---:|:---:|
+| <img src="docs/screens/pl/V_usb_pytanie.png" width="100%" alt="Pytanie po podłączeniu USB"> | <img src="docs/screens/pl/W_ladowanie.png" width="100%" alt="Tryb ładowania"> |
 
 ### Wyjście ze strefy i kontrola trasy
 Gdy wlecisz w aktywną strefę (te same strefy, które dają alarm W STREFIE – klasy z listy ignorowanych i strefy nieaktywne wg AUP się nie liczą), alarm ma dwa przyciski:
@@ -142,14 +158,36 @@ Porównywane są trzy drogi, wybierana najszybsza:
 
 Ekran: strzałka względem Twojego kursu (albo duża strzałka WZNOŚ SIĘ / ZNIŻAJ SIĘ z wysokością docelową), nazwa strefy i czasy wszystkich trzech możliwości. Plan liczony jest co sekundę; 10 s po wyjściu ekran sam się zamyka (ręcznie: przytrzymaj KLAWISZ). Bez alarmu: Menu → Nawigacja → *Wyprowadź ze strefy*.
 
+| Alarm W STREFIE | WYJŚCIE – w poziomie | WYJŚCIE – w górę |
+|:---:|:---:|:---:|
+| <img src="docs/screens/pl/Z_alarm_w_strefie.png" width="100%" alt="Alarm W STREFIE"> | <img src="docs/screens/pl/X_wyjscie_poziom.png" width="100%" alt="WYJŚCIE – w poziomie"> | <img src="docs/screens/pl/X_wyjscie_gora.png" width="100%" alt="WYJŚCIE – w górę"> |
+
 **Kontrola trasy:** po wybraniu trasy w Menu → Nawigacja → Wybierz trasę albo po aktywacji z telefonu ParaNav sprawdza, które strefy trasa przecina (próbka co 100 m), z teren pod trasą i dzisiejszym planem aktywności. Kolizja = strefa nie-nieaktywna z podstawą poniżej wysokości z Menu → Alarmy → *Kontrola trasy: lot do* (domyślnie 1000 m nad terenem). Lista pokazuje się na ekranie; aplikacja dostaje liczbę kolizji i ją wyświetla. Aplikacja sama sprawdza trasę już przed wysłaniem (na strefach wczytanych na mapę, bez terenu i planu AUP – ostrożniej). Ponownie: Menu → Nawigacja → *Sprawdź trasę – strefy*.
+
+<p align="center"><img src="docs/screens/pl/Y_kontrola_trasy.png" width="60%" alt="Kontrola trasy – strefy przecinane przez trasę"><br><sub>Kontrola trasy – strefy przecinane przez trasę</sub></p>
 
 ## Pomoc w urządzeniu
 Menu → **Pomoc**: przyciski i dotyk, pasek stanu, opis każdego ekranu, alarmy, pliki na karcie SD, automatyczny start/lądowanie/zapis. Treść jest w `lib/navcore/src/ui/help.cpp` – łatwo ją poprawić; `tools/preview/layout_check.sh` sprawdza, czy każda strona mieści się na ekranie i czy font ma wszystkie znaki.
 
 ## Ekrany
 
-`LOT → MAPA → TOPO → RUCH → NAWIGACJA → TERMIKA → STREFY → PALIWO → SYSTEM` (podglądy PNG w `docs/screens/pl/`; TOPO na podglądzie pokazuje fikcyjną mapę testową).
+`LOT → MAPA → TOPO → RUCH → NAWIGACJA → TERMIKA → STREFY → PALIWO → SYSTEM` (przełączanie: KLAWISZ / BOOT krótko albo dotyk lewej / prawej krawędzi). Zrzuty poniżej pochodzą z podglądu `tools/preview/build.sh` – ten sam kod rysujący co w urządzeniu, symulowany lot z przykładowymi danymi z `sd_card/`; TOPO jest pokazane bez wgranej mapy podkładowej.
+
+| LOT | MAPA | TOPO (bez mapy podkładowej) |
+|:---:|:---:|:---:|
+| <img src="docs/screens/pl/0_LOT.png" width="100%" alt="LOT"> | <img src="docs/screens/pl/1_MAPA.png" width="100%" alt="MAPA"> | <img src="docs/screens/pl/2_TOPO.png" width="100%" alt="TOPO (bez mapy podkładowej)"> |
+
+| RUCH (FANET) | NAWIGACJA | TERMIKA |
+|:---:|:---:|:---:|
+| <img src="docs/screens/pl/3_RUCH.png" width="100%" alt="RUCH (FANET)"> | <img src="docs/screens/pl/4_NAWIGACJA.png" width="100%" alt="NAWIGACJA"> | <img src="docs/screens/pl/5_TERMIKA.png" width="100%" alt="TERMIKA"> |
+
+| STREFY | PALIWO | SYSTEM |
+|:---:|:---:|:---:|
+| <img src="docs/screens/pl/6_STREFY.png" width="100%" alt="STREFY"> | <img src="docs/screens/pl/7_PALIWO.png" width="100%" alt="PALIWO"> | <img src="docs/screens/pl/8_SYSTEM.png" width="100%" alt="SYSTEM"> |
+
+| Podsumowanie lotu | Ekran startowy | Menu |
+|:---:|:---:|:---:|
+| <img src="docs/screens/pl/A_summary.png" width="100%" alt="Podsumowanie lotu"> | <img src="docs/screens/pl/B_boot.png" width="100%" alt="Ekran startowy"> | <img src="docs/screens/pl/9_menu.png" width="100%" alt="Menu"> |
 
 Wygląd (0.5.3): dane są pogrupowane w „karty” z zaokrąglonymi rogami (ramka 2 px, odstępy 6 px), pasek stanu jest czarny jak tytuł menu, ostrzeżenia to zaokrąglone czarne paski, przyciski dotykowe mają mały cień, a pasek vario to zaokrąglona skala z grubą kreską zera. Wszystko jest czysto czarno-białe – szarości nie przetrwają szybkiego odświeżania (DU). Funkcje rysujące: `Canvas::roundRect / fillRoundRect / invertRoundRect`, `card()` i `pill()` w `screens.cpp`.
 
@@ -162,6 +200,10 @@ Wnętrza stref są kreskowane, a nie szare. Szybkie odświeżanie e-papieru (co 
 
 Kreskowane są tylko strefy aktywne i istotne na Twojej wysokości: jesteś w ich zakresie pionowym albo bliżej niż 2× bufor pionowy, min. 150 m. Strefy wysoko nad Tobą lub pod Tobą mają sam kontur, a nieaktywne – kontur przerywany.
 
+| Strefy na MAPIE | Ekran STREFY z profilem pionowym |
+|:---:|:---:|
+| <img src="docs/screens/pl/1_MAPA.png" width="100%" alt="Strefy na MAPIE"> | <img src="docs/screens/pl/6_STREFY.png" width="100%" alt="Ekran STREFY z profilem pionowym"> |
+
 ## Trasy: planowanie i wybór
 
 * **Planowanie – aplikacja na Androida** → „Zaplanuj nową trasę na mapie” / „Moje trasy”. Mapa OpenTopoMap (topograficzna), na niej strefy i punkty z plików wysłanych do ParaNav (albo dodanych w menu planowania). Dotknięcie mapy = nowy punkt (dotknięcie znanego punktu bierze jego nazwę i wysokość), dotknięcie punktu = nazwa / lądowisko / wstaw przed / usuń, przytrzymanie i przeciągnięcie = przesunięcie, ↶ = cofnij, ⤢ = cała trasa. Pod mapą odcinki z odległością i kursem, długość i czas przy Twojej prędkości przelotowej. Trasy zapisują się w telefonie same; można je eksportować i importować jako `.cup`.
@@ -173,6 +215,10 @@ Kafelki mapy: © OpenStreetMap contributors, SRTM | styl mapy © OpenTopoMap (CC
 
 ## Wysyłanie plików z telefonu (Android)
 Aplikacja w katalogu `android/` (instrukcja budowania: `android/README.pl.md`) wysyła przez Bluetooth strefy (OpenAir), aktywacje na dziś, punkty i trasę (.cup) – bez wyjmowania karty SD. ParaNav sprawdza każdy plik przed zapisaniem i od razu go wczytuje; w czasie odbioru na dole ekranu jest pasek postępu, a na pasku stanu „TEL”. Włączanie/wyłączanie: Menu → System → Telefon (Bluetooth).
+
+| Odbieranie pliku z telefonu | Ekran SYSTEM – wynik z telefonu |
+|:---:|:---:|
+| <img src="docs/screens/pl/E_receiving.png" width="100%" alt="Odbieranie pliku z telefonu"> | <img src="docs/screens/pl/F_system_phone.png" width="100%" alt="Ekran SYSTEM – wynik z telefonu"> |
 
 ## Karta SD (FAT32)
 
@@ -262,6 +308,8 @@ Rozmiar: Gdańsk 100 km, z10–z14 – szacunkowo 20–60 MB (morze i jednolite 
 
 Kilka obszarów na karcie (np. `maps/gdansk`, `maps/wyjazd`) – urządzenie samo wybiera ten, który obejmuje Twoją pozycję. SYSTEM → „Teren / mapa” pokazuje kafle terenu i nazwę aktywnej mapy.
 
+<p align="center"><img src="docs/screens/pl/U_usb.png" width="60%" alt="Tryb USB – karta SD jako dysk"><br><sub>Tryb USB – karta SD jako dysk</sub></p>
+
 ## FANET – inni piloci (LoRa 868 MHz)
 
 Wbudowany moduł SX1262 pracuje w otwartym protokole **FANET** (868,2 MHz, LoRa SF7/250 kHz, [specyfikacja](https://github.com/3s1d/fanet-stm32/blob/master/Src/fanet/radio/protocol.txt)) – tym samym, którego używają Skytraxx, XC Tracer, Naviter (FANET+), Burnair, Leaf, GXAirCom, SoftRF. **FLARM nie jest obsługiwany** (zamknięty, szyfrowany protokół) – samoloty i szybowce z samym FLARM nie widzą ParaNav, a ParaNav nie widzi ich.
@@ -271,6 +319,10 @@ Wbudowany moduł SX1262 pracuje w otwartym protokole **FANET** (868,2 MHz, LoRa 
 * **Wyświetlanie:** MAPA i TOPO – strzałki z różnicą wysokości; ekran **RUCH** – lista i radar (kursem do góry), dotknięcie pilota ustawia go jako cel nawigacji; pasek stanu **FN n**.
 * **Ostrzeżenia** (tylko w locie): prognoza najbliższego zbliżenia na 60 s przy stałych kursach i prędkościach. *Uwaga* (ramka RUCH w prawym górnym rogu dowolnego ekranu): bliżej niż próg odległości (domyślnie 300 m) i wysokości (100 m) albo prognoza takiego zbliżenia w ciągu 45 s. *Alarm* (pasek RUCH! godz. N): połowa progów albo w ciągu 20 s. Progi i wyłączenie: Menu → FANET.
 * **Antena wewnętrzna** – zasięg zależy od tego, gdzie leży urządzenie (metal kosza, ciało pilota). Sprawdź na ziemi z kolegą albo na glidernet.org, czy Twoja pozycja dociera.
+
+| Ekran RUCH – lista i radar | Uwaga o ruchu na innym ekranie |
+|:---:|:---:|
+| <img src="docs/screens/pl/3_RUCH.png" width="100%" alt="Ekran RUCH – lista i radar"> | <img src="docs/screens/pl/R_traffic_hint.png" width="100%" alt="Uwaga o ruchu na innym ekranie"> |
 
 > FANET to pomoc w obserwacji, nie system antykolizyjny: pozycje przychodzą co ~5 s, nie każdy ma nadajnik. Patrz w powietrze.
 
@@ -296,12 +348,15 @@ Bez instalowania PlatformIO: w zakładce **Releases** są gotowe pliki każdej w
 * `tools/android_planner_test/run.sh` – funkcje planowania tras z aplikacji (współrzędne, zapis/odczyt `.cup`, parser OpenAir) i sprawdzenie krzyżowe: plik `.cup` zapisany przez aplikację czyta firmware.
 * `tools/preview/layout_check.sh` – renderuje wszystkie ekrany, menu, alarmy i ekran startowy w sytuacjach normalnych, „nic nie działa” i ze skrajnymi wartościami (9999 m, -12.3 m/s, 999 km, długie nazwy stref i punktów...). Zgłasza każdy napis, który wychodzi poza ekran, nachodzi na inny napis albo przecina linię podziału.
 * `tools/preview/build.sh` – symuluje lot i renderuje wszystkie ekrany do PNG (`/tmp/preview`), ten sam kod UI co na urządzeniu. `PARANAV_LANG=en` – po angielsku. `layout_check.sh` sprawdza oba języki.
+* `tools/docs/make_screens.sh` – odświeża zrzuty ekranów do README (`docs/screens/pl`, `docs/screens/en`).
 
 ## Restarty i raporty awarii
 
 Każde uruchomienie jest zapisywane w **`/logs/restarts.txt`** (powód restartu, jak długo działało poprzednio, ostatnia czynność, napięcie baterii). Każdy nieoczekiwany restart ma też pełny raport **`/logs/crash-NN.txt`**: powód (błąd programu, watchdog, spadek napięcia, zanik zasilania bez wyłączenia), stan tuż przed restartem (bateria, USB, ekran, lot, FANET, najmniej wolnej pamięci), ok. 12 ostatnich czynności z czasem oraz – przy błędzie programu i watchdogu – ślad stosu do rozkodowania z `firmware.elf`. Raport jest zapisywany od razu po zamontowaniu karty, przed wczytaniem danych, więc awaria podczas wczytywania też jest zgłoszona.
 
 Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchamia się w **trybie awaryjnym**: Bluetooth (BlueFly, telefon), FANET i mapy TOPO są wtedy wyłączone, żeby urządzenie dało się używać i zgrać raporty (np. w trybie USB). Po 5 minutach normalnej pracy kolejne uruchomienie jest już zwykłe.
+
+<p align="center"><img src="docs/screens/pl/B_boot.png" width="60%" alt="Ekran startowy – stan czujników i danych"><br><sub>Ekran startowy – stan czujników i danych</sub></p>
 
 ## Do sprawdzenia na sprzęcie (pierwsze uruchomienie)
 1. **Orientacja** – jeśli obraz jest do góry nogami: Menu → Ekran i mapa → Obróć ekran o 180°.

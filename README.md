@@ -10,6 +10,10 @@ Firmware for the **LilyGO T5 E-Paper S3 Pro** (ESP32-S3, 4.7″ 960×540 e-paper
 
 ParaNav is a flight computer for paramotor pilots, built on an off-the-shelf board with a large e-paper screen (readable in full sunlight, almost no power while the picture stays). It replaces a variometer, GPS navigation, fuel calculator and airspace warner in the cockpit – all on one screen, operated with two buttons (with gloves) or by touch.
 
+| FLIGHT screen | MAP screen |
+|:---:|:---:|
+| <img src="docs/screens/en/0_FLIGHT.png" width="100%" alt="FLIGHT screen"> | <img src="docs/screens/en/1_MAP.png" width="100%" alt="MAP screen"> |
+
 **In flight it shows:**
 * **altitude and vario** – from a wired barometer or a BlueFlyVario over Bluetooth (without a barometer: from GPS); height above takeoff and above the terrain, average climb, thermal gain,
 * **wind** – worked out on its own from a few turns, no extra sensors,
@@ -103,6 +107,8 @@ Changing the source restarts the vario filter (no false jump), and losing the ba
 
 **Wired sensor and full screen refreshes (0.5.2):** the e-paper high-voltage supply disturbs the wired MS5611 during a full refresh (about 2 m altitude jump, ±0.5 m/s on the vario). For the refresh and 1 s after it the vario ignores the wired readings and extrapolates with the last climb rate; isolated samples more than 1.5 m off the prediction are rejected as well (a jump that lasts 0.3 s is accepted as real). The SYSTEM screen shows `F a/b` next to the pressure: refreshes waited out / samples rejected. Hardware help: 10 µF + 100 nF across VCC–GND at the sensor, a short cable routed away from the display flex.
 
+<p align="center"><img src="docs/screens/en/8_SYSTEM.png" width="60%" alt="SYSTEM screen – barometer (F a/b), memory (RAM/PSRAM, “fr”) and redraw time (“draw”)"><br><sub>SYSTEM screen – barometer (F a/b), memory (RAM/PSRAM, “fr”) and redraw time (“draw”)</sub></p>
+
 ### Buttons
 On the schematic IO48 is a display line; the user button **S3 is connected through the PCA9535 expander (IO1_2)**. The second button is **BOOT (GPIO0)**.
 
@@ -117,9 +123,17 @@ On the schematic IO48 is a display line; the user button **S3 is connected throu
 
 **Power on / off:** the PWR button on the board or plugging in USB powers the device on. Power off: **hold both buttons (KEY + BOOT) for 3 s** (POWERING OFF… appears after 1 s, releasing cancels) or Menu → *Power off* → *YES*. The flight is saved and closed, and POWERED OFF stays on the screen. The BQ25896 charger then disconnects the battery. **Power off does not work while USB is connected** – that is how the charger chip works, not the firmware.
 
+| Both buttons held – powering off | Powered off |
+|:---:|:---:|
+| <img src="docs/screens/en/C_power_hint.png" width="100%" alt="Both buttons held – powering off"> | <img src="docs/screens/en/D_power_off.png" width="100%" alt="Powered off"> |
+
 Touch (bare fingers): top bar = menu, left edge = previous screen, right edge = next, MAP centre = change scale, TOPO upper/lower half = zoom in/out, TRAFFIC list = fly to the pilot, NAV = change target, FUEL = ±0.5 l / full tank / engine buttons. In the menu: tap an item to choose it; long lists have big **▲ / ▼** buttons on the right (page up / down).
 
 **Menu refresh:** the menu, help and the flight summary are static – they are redrawn only after a button press or a touch (no updates every second, no timed full refresh). A full refresh (flash) happens when the menu opens or closes and after every 20 moves inside it, so no ghosting builds up.
+
+| Menu | Editing a value in the menu |
+|:---:|:---:|
+| <img src="docs/screens/en/9_menu.png" width="100%" alt="Menu"> | <img src="docs/screens/en/9b_menu_edit.png" width="100%" alt="Editing a value in the menu"> |
 
 ### USB power: navigation, charging or files
 When USB power appears, ParaNav asks what to do (like action cameras): **NAVIGATION** (normal operation, e.g. a power bank in flight), **CHARGING** (static battery screen: navigation paused, FANET and BlueFly off, redrawn only when the percentage changes) or **FILES** (USB mode – offered only when a computer is on the other end of the cable). Tap a button, or KEY short = next / long = choose.
@@ -128,7 +142,9 @@ When USB power appears, ParaNav asks what to do (like action cameras): **NAVIGAT
 * **Never asked in flight** – a power bank plugged in during the flight just powers the device. After a crash restart (watchdog, panic, brownout) the device goes straight back to navigation.
 * Leaving charging: tap the screen, hold KEY, or **unplug USB** → navigation starts. Manual: Menu → System → *Charging mode*.
 
-Previews: `docs/screens/en/V_usb_question.png`, `W_charging.png`.
+| Question after plugging in USB | Charging mode |
+|:---:|:---:|
+| <img src="docs/screens/en/V_usb_question.png" width="100%" alt="Question after plugging in USB"> | <img src="docs/screens/en/W_charging.png" width="100%" alt="Charging mode"> |
 
 ### Airspace exit and route check
 When you enter active airspace (the zones that raise the INSIDE alert – ignored classes and zones inactive according to the AUP file do not count), the alert has two buttons:
@@ -142,14 +158,36 @@ Three ways are compared and the fastest one is shown:
 
 Screen: an arrow relative to your track (or a big CLIMB / DESCEND arrow with the target altitude), the zone name and the times of all three options. The plan is recomputed every second; the screen closes 10 s after you are out (by hand: hold KEY). Without the alert: Menu → Navigation → *Lead me out of airspace*.
 
+| INSIDE alert | EXIT – horizontal | EXIT – climb |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/Z_alert_inside.png" width="100%" alt="INSIDE alert"> | <img src="docs/screens/en/X_exit_level.png" width="100%" alt="EXIT – horizontal"> | <img src="docs/screens/en/X_exit_up.png" width="100%" alt="EXIT – climb"> |
+
 **Route check:** after choosing a route in Menu → Navigation → Choose route, or activating it from the phone, ParaNav checks which zones the route crosses (a sample every 100 m), using the terrain below the route and today's activation schedule. A conflict = a zone not known to be inactive with its floor below the height in Menu → Alarms → *Route check: flying up to* (default 1000 m AGL). The list is shown on the screen; the app receives the number of conflicts and shows it. The app also checks the route itself before sending (against the zones loaded on its map, without terrain and AUP – more cautious). Again: Menu → Navigation → *Check route – airspace*.
+
+<p align="center"><img src="docs/screens/en/Y_route_check.png" width="60%" alt="Route check – zones crossed by the route"><br><sub>Route check – zones crossed by the route</sub></p>
 
 ## Built-in help
 Menu → **Help**: buttons and touch, status bar, every screen, FANET, alerts, files on the SD card, maps and USB mode, automatic takeoff/landing/logging. The text is in `lib/navcore/src/ui/help.cpp` (Polish and English side by side); `tools/preview/layout_check.sh` checks in both languages that every page fits on the screen and that the font has all characters.
 
 ## Screens
 
-`FLIGHT → MAP → TOPO → TRAFFIC → NAV → THERMAL → AIRSPACE → FUEL → SYSTEM` (PNG previews in `docs/screens/en/`; the TOPO preview shows a fictional test map).
+`FLIGHT → MAP → TOPO → TRAFFIC → NAV → THERMAL → AIRSPACE → FUEL → SYSTEM` (switching: KEY / BOOT short or a touch on the left / right edge). The pictures below come from the `tools/preview/build.sh` preview – the same drawing code as on the device, a simulated flight with the sample data from `sd_card/`; TOPO is shown without a background map.
+
+| FLIGHT | MAP | TOPO (no background map) |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/0_FLIGHT.png" width="100%" alt="FLIGHT"> | <img src="docs/screens/en/1_MAP.png" width="100%" alt="MAP"> | <img src="docs/screens/en/2_TOPO.png" width="100%" alt="TOPO (no background map)"> |
+
+| TRAFFIC (FANET) | NAV | THERMAL |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/3_TRAFFIC.png" width="100%" alt="TRAFFIC (FANET)"> | <img src="docs/screens/en/4_NAV.png" width="100%" alt="NAV"> | <img src="docs/screens/en/5_THERMAL.png" width="100%" alt="THERMAL"> |
+
+| AIRSPACE | FUEL | SYSTEM |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/6_AIRSPACE.png" width="100%" alt="AIRSPACE"> | <img src="docs/screens/en/7_FUEL.png" width="100%" alt="FUEL"> | <img src="docs/screens/en/8_SYSTEM.png" width="100%" alt="SYSTEM"> |
+
+| Flight summary | Boot screen | Menu |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/A_summary.png" width="100%" alt="Flight summary"> | <img src="docs/screens/en/B_boot.png" width="100%" alt="Boot screen"> | <img src="docs/screens/en/9_menu.png" width="100%" alt="Menu"> |
 
 Look (0.5.3): content is grouped in rounded "cards" (2 px frame, 6 px gaps), the status bar is black like the menu title, warnings are rounded black bars, touch buttons have a small shadow, and the vario bar is a rounded scale with a bold zero line. Everything is pure black and white – grey does not survive the fast (DU) e-paper refresh. Drawing helpers: `Canvas::roundRect / fillRoundRect / invertRoundRect`, `card()` and `pill()` in `screens.cpp`.
 
@@ -162,6 +200,10 @@ Airspace interiors are hatched, not grey. The fast e-paper refresh (every second
 
 Only active airspace relevant at your altitude is hatched: you are within its vertical limits or closer than 2× the vertical buffer (min. 150 m). Airspace far above or below you has an outline only, inactive airspace a dashed outline.
 
+| Airspace on the MAP | AIRSPACE screen with the vertical profile |
+|:---:|:---:|
+| <img src="docs/screens/en/1_MAP.png" width="100%" alt="Airspace on the MAP"> | <img src="docs/screens/en/6_AIRSPACE.png" width="100%" alt="AIRSPACE screen with the vertical profile"> |
+
 ## Routes: planning and choosing
 
 * **Planning – Android app** → "Plan a new route on the map" / "My routes". OpenTopoMap map (topographic), the airspace and waypoints you sent to ParaNav (or added in the planner menu) are shown on it. Tap the map = add a point (tapping a known waypoint uses its name and elevation), tap a point = name / landing field / insert before / delete, hold and drag = move, ↶ = undo, ⤢ = whole route. Below the map: legs with distance and course, total length and time at your cruise speed. Routes are saved on the phone automatically; they can be exported/imported as `.cup`.
@@ -173,6 +215,10 @@ Map tiles: © OpenStreetMap contributors, SRTM | map style © OpenTopoMap (CC-BY
 
 ## Uploading files from a phone (Android)
 The app in `android/` (build instructions: `android/README.md`) sends airspace (OpenAir), today's activations, waypoints and routes (.cup) via Bluetooth – without removing the SD card. ParaNav checks every file before saving and loads it immediately; during the upload a progress bar is shown at the bottom of the screen and "TEL" in the status bar. On/off: Menu → System → Phone (Bluetooth). The app is in English, or in Polish when the phone is set to Polish.
+
+| Receiving a file from the phone | SYSTEM screen – result from the phone |
+|:---:|:---:|
+| <img src="docs/screens/en/E_receiving.png" width="100%" alt="Receiving a file from the phone"> | <img src="docs/screens/en/F_system_phone.png" width="100%" alt="SYSTEM screen – result from the phone"> |
 
 ## SD card (FAT32)
 
@@ -262,6 +308,8 @@ Size: Gdańsk 100 km, z10–z14 – roughly 20–60 MB (sea and solid forest tak
 
 Several areas on the card (e.g. `maps/gdansk`, `maps/holiday`) – the device picks the one covering your position. SYSTEM → "Terrain / map" shows the terrain tiles and the name of the active map.
 
+<p align="center"><img src="docs/screens/en/U_usb.png" width="60%" alt="USB mode – SD card as a drive"><br><sub>USB mode – SD card as a drive</sub></p>
+
 ## FANET – other pilots (LoRa 868 MHz)
 
 The on-board SX1262 module speaks the open **FANET** protocol (868.2 MHz, LoRa SF7/250 kHz, [specification](https://github.com/3s1d/fanet-stm32/blob/master/Src/fanet/radio/protocol.txt)) – the one used by Skytraxx, XC Tracer, Naviter (FANET+), Burnair, Leaf, GXAirCom, SoftRF. **FLARM is not supported** (closed, encrypted protocol) – aircraft and gliders with FLARM only do not see ParaNav, and ParaNav does not see them.
@@ -271,6 +319,10 @@ The on-board SX1262 module speaks the open **FANET** protocol (868.2 MHz, LoRa S
 * **Display:** MAP and TOPO – arrows with height difference; **TRAFFIC** screen – list and track-up radar, tapping a pilot makes him the navigation target; status bar **FN n**.
 * **Warnings** (in flight only): closest point of approach predicted 60 s ahead, assuming constant tracks and speeds. *Caution* (TRAFFIC box in the top right of any screen): closer than the distance limit (default 300 m) and height limit (100 m), or such an approach predicted within 45 s. *Alarm* (TRAFFIC! bar with the clock position): half the limits or within 20 s. Limits and on/off: Menu → FANET.
 * **Internal antenna** – the range depends on where the device sits (cage metal, the pilot's body). Check on the ground with a friend, or on glidernet.org, that your position gets through.
+
+| TRAFFIC screen – list and radar | Traffic caution on another screen |
+|:---:|:---:|
+| <img src="docs/screens/en/3_TRAFFIC.png" width="100%" alt="TRAFFIC screen – list and radar"> | <img src="docs/screens/en/R_traffic_hint.png" width="100%" alt="Traffic caution on another screen"> |
 
 > FANET is an aid to lookout, not a collision avoidance system: positions arrive every ~5 s and not everyone carries a transmitter. Keep a lookout.
 
@@ -296,12 +348,15 @@ No PlatformIO needed: **Releases** has the files of every version – `paranav-<
 * `tools/android_planner_test/run.sh` – route planner helpers of the app (coordinates, `.cup` writing/reading, OpenAir parser) and a cross-check: a `.cup` written by the app is read by the firmware.
 * `tools/preview/layout_check.sh` – renders every screen, menu, alert and the boot screen in normal, "nothing works" and extreme situations (9999 m, -12.3 m/s, 999 km, long airspace and waypoint names...), in both languages. Reports every text that leaves the screen, overlaps another text or crosses a separator line.
 * `tools/preview/build.sh` – simulates a flight and renders all screens to PNG (`/tmp/preview`), with the same UI code as the device. `PARANAV_LANG=en` for English.
+* `tools/docs/make_screens.sh` – refreshes the README screenshots (`docs/screens/pl`, `docs/screens/en`).
 
 ## Restarts and crash reports
 
 Every start is logged in **`/logs/restarts.txt`** (reset reason, how long the previous run lasted, its last action, battery voltage). Every unexpected restart also gets a full report **`/logs/crash-NN.txt`**: reason (software error, watchdog, brownout, power lost without powering off), the state just before (battery, USB, screen, flying, FANET, lowest free memory), the last ~12 actions with times and – for software errors and watchdogs – the backtrace for decoding with `firmware.elf`. The report is written right after the SD card is mounted, before any data is loaded, so a crash while loading is reported too.
 
 After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **safe mode**: Bluetooth (BlueFly, phone), FANET and TOPO maps stay off for that run, so the device remains usable and the reports can be copied (e.g. in USB mode). The next start after 5 minutes of normal running is normal again.
+
+<p align="center"><img src="docs/screens/en/B_boot.png" width="60%" alt="Boot screen – sensors and data status"><br><sub>Boot screen – sensors and data status</sub></p>
 
 ## Things to check on the hardware (first start)
 1. **Orientation** – if the picture is upside down: Menu → Display and map → Rotate screen 180°.

@@ -20,6 +20,7 @@
 #include "ui/menu.h"
 #include "ui/screens.h"
 #include "waypoints.h"
+#include "../../src/config.h"  // PARANAV_VERSION (only #defines)
 
 using namespace nav;
 
@@ -152,6 +153,8 @@ int main(int argc, char** argv) {
     sys.gpsModule = "u-blox MIA-M10Q"; sys.baroOk = true; sys.battSource = "BQ27220"; sys.backlight = true; sys.bfState = 3; sys.bfName = "BlueFly-7970"; sys.bfBattPct = 85; sys.bfRssi = -62; sys.i2cDevices = "20 51 55 5D 68 6B 77"; sys.recording = true;
     sys.logFile = "/sd/logs/2026-11-16-XPN-NAV-01.igc";
     sys.freeHeapKb = 180; sys.freePsramKb = 7600;
+    sys.psramFreeBlocks = 140; sys.renderMaxMs = 310;  // typical values on the device (diagnostics row)
+    sys.version = PARANAV_VERSION;
 
     ui::UiContext u;
     u.nav = &n; u.set = &set; u.asp = &asp; u.hits = &hits; u.wpts = &wp; u.route = &route;
@@ -269,7 +272,7 @@ int main(int argc, char** argv) {
     savePgm(out + "/C_power_hint.pgm");
     ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"));
     savePgm(out + "/D_power_off.pgm");
-    ui::drawBoot(c, {TR("[OK] Wyświetlacz", "[OK] Display"), TR("[OK] Barometr MS5611", "[OK] Barometer MS5611"), TR("[OK] Karta SD", "[OK] SD card"), TR("[OK] Strefy: 4", "[OK] Airspace: 4"), TR("[..] GPS: szukam satelitów", "[..] GPS: searching for satellites")}, "0.4");
+    ui::drawBoot(c, {TR("[OK] Wyświetlacz", "[OK] Display"), TR("[OK] Barometr MS5611", "[OK] Barometer MS5611"), TR("[OK] Karta SD", "[OK] SD card"), TR("[OK] Strefy: 4", "[OK] Airspace: 4"), TR("[..] GPS: szukam satelitów", "[..] GPS: searching for satellites")}, PARANAV_VERSION);
     savePgm(out + "/B_boot.pgm");
     return 0;
 }
