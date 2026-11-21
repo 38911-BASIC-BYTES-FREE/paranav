@@ -27,7 +27,7 @@ Far zooms (z10-z11) use a simplified "obstacles" view so the overview stays read
   wind farms as one symbol with the number of turbines (single turbines and pairs stay as dots),
   masts/towers/chimneys only when OSM gives a height of at least 100 m (no cranes), rivers without
   canals, no ponds.
-z12: masts/towers from 40 m (telecom towers, chimneys and flares always), clusters closer than 30 px
+z12: masts/towers/chimneys from 40 m (telecom towers and flares always), clusters closer than 30 px
   as one symbol "xN", cranes only from z14.
 
 .pak file format (little endian), one file per zoom level:
@@ -553,7 +553,7 @@ def style(z):
         "water_min_px": 0 if z >= 12 else 40,     # drop ponds in the overview (area in px^2)
         "canals": z >= 12,                         # z10-11: rivers only, no (drainage) canals
         "mast_min_h": 0 if z >= 13 else (40 if z == 12 else 100),  # min. height [m] of a mast/tower
-        "mast_always": ("communications_tower", "chimney", "flare") if z == 12 else (),  # shown without height
+        "mast_always": ("communications_tower", "flare") if z == 12 else (),  # shown even without a height
         "cranes": z >= 14,                         # cranes (ports, building sites) only in the closest view
         "mast_group_px": 30 if z == 12 else 0,     # z12: masts closer than this form one symbol "xN"
     }
