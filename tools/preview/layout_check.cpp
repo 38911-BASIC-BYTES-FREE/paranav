@@ -327,14 +327,16 @@ int main(int argc, char** argv) {
         e.fc.reset(new FlightComputer(e.set));
         BaroSnapshot b;
         e.fc->updateNoGps(b, 5);
-        e.sys.battSource = "brak (55:nie 6B:nie)";
-        e.sys.gpsModule = "brak odpowiedzi";
-        e.sys.i2cDevices = "nic";
+        e.sys.battSource = TR("brak (55:nie 6B:nie)", "none (55:no 6B:no)");
+        e.sys.gpsModule = TR("brak odpowiedzi", "no response");
+        e.sys.i2cDevices = TR("nic", "nothing");
         e.sys.bfState = 1;
-        e.sys.loadErrors = {"Restart: błąd programu (panic): MENU>Pomoc>[Ekran MAPA] pomoc str.2",
-                            "Raport: logs/crash-01.txt (loopTask, PC 0x4200abcd)",
-                            "Strefy: brak danych w bardzo_dluga_nazwa_pliku_strefy.txt",
-                            "Nie mogę utworzyć pliku IGC"};
+        e.sys.loadErrors = {TR("Restart: błąd programu (panic): MENU>Pomoc>[Ekran MAPA] pomoc str.2",
+                               "Restart: software error (panic): MENU>Help>[MAP screen] help p.2"),
+                            TR("Raport: logs/crash-01.txt (loopTask, PC 0x4200abcd)", "Report: logs/crash-01.txt (loopTask, PC 0x4200abcd)"),
+                            TR("Strefy: brak danych w bardzo_dluga_nazwa_pliku_strefy.txt",
+                               "Airspace: no data in a_very_long_airspace_file_name.txt"),
+                            TR("Nie mogę utworzyć pliku IGC", "Cannot create the IGC file")};
         render(e, "brak-danych");
     }
 
@@ -360,7 +362,7 @@ int main(int argc, char** argv) {
         w.sys.activationEntries = 999; w.sys.activationDate = 20261116; w.sys.waypoints = 9999; w.sys.routePoints = 999;
         w.sys.terrainTiles = 999; w.sys.freeHeapKb = 999; w.sys.freePsramKb = 99999; w.sys.gpsSentences = 9999999;
         w.sys.gpsCsErr = 99999; w.sys.touchX = 959; w.sys.touchY = 539; w.sys.version = "0.1.0";
-        w.sys.battSource = "BQ25896 (napięcie)";
+        w.sys.battSource = TR("BQ25896 (napięcie)", "BQ25896 (voltage)");
         w.sys.backlight = true;
         w.sys.bfState = 3; w.sys.bfName = "BlueFly-7970"; w.sys.bfBattPct = 100; w.sys.bfRssi = -100;
         w.sys.phoneState = 3; w.sys.phoneProgress = 0.457f;
@@ -380,14 +382,18 @@ int main(int argc, char** argv) {
             h.idx = i % nz; h.insideH = false; h.distM = 19999; h.timeToEntryS = 119; h.level = 1;
             w.hits.push_back(h);
         }
-        w.alerts.set(AL_AIRSPACE_IN, true, 1, "W STREFIE: " + w.asp.zones()[nz - 2].name, "R  762m AGL – FL195", 1);
-        w.alerts.set(AL_AIRSPACE_NEAR, true, 1, "STREFA: " + w.asp.zones()[nz - 1].name, "wlot za 1:59  (19.9 km)", 2);
-        w.alerts.set(AL_FUEL_RETURN, true, 1, "WRACAJ – PALIWO!", "paliwo 99.9 l, na powrót potrzeba 99.9 l");
-        w.alerts.set(AL_FUEL_LOW, true, 1, "MAŁO PALIWA", "zapas na powrót tylko -999 min");
-        w.alerts.set(AL_LOW_AGL, true, 1, "NISKO!", "-999 m nad terenem");
-        w.alerts.set(AL_GPS_LOST, true, 1, "BRAK GPS", "nawigacja i strefy nieaktualne");
-        w.alerts.set(AL_BATTERY, true, 1, "SŁABA BATERIA", "1 %");
-        w.alerts.set(AL_BARO_LOST, true, 1, "BRAK BAROMETRU", "wysokość i vario z GPS (mniej dokładne)");
+        // same texts as evaluateAlerts() in src/main.cpp, in the current language
+        w.alerts.set(AL_AIRSPACE_IN, true, 1, TR("W STREFIE: ", "INSIDE: ") + w.asp.zones()[nz - 2].name, "R  762m AGL – FL195", 1);
+        w.alerts.set(AL_AIRSPACE_NEAR, true, 1, TR("STREFA: ", "AIRSPACE: ") + w.asp.zones()[nz - 1].name,
+                     TR("wlot za 1:59  (19.9 km)", "entry in 1:59  (19.9 km)"), 2);
+        w.alerts.set(AL_FUEL_RETURN, true, 1, TR("WRACAJ – PALIWO!", "TURN BACK – FUEL!"),
+                     TR("paliwo 99.9 l, na powrót potrzeba 99.9 l", "fuel 99.9 l, return needs 99.9 l"));
+        w.alerts.set(AL_FUEL_LOW, true, 1, TR("MAŁO PALIWA", "LOW FUEL"), TR("zapas na powrót tylko -999 min", "return margin only -999 min"));
+        w.alerts.set(AL_LOW_AGL, true, 1, TR("NISKO!", "LOW!"), TR("-999 m nad terenem", "-999 m AGL"));
+        w.alerts.set(AL_GPS_LOST, true, 1, TR("BRAK GPS", "NO GPS"), TR("nawigacja i strefy nieaktualne", "navigation and airspace not updated"));
+        w.alerts.set(AL_BATTERY, true, 1, TR("SŁABA BATERIA", "LOW BATTERY"), "1 %");
+        w.alerts.set(AL_BARO_LOST, true, 1, TR("BRAK BAROMETRU", "NO BAROMETER"),
+                     TR("wysokość i vario z GPS (mniej dokładne)", "altitude and vario from GPS (less accurate)"));
         w.fc->lastFlight = {true, 99 * 3600 + 59 * 60, 9999, 12.3f, -12.3f, 999.9f, 999.9f, 99.9f};
         w.sys.logFile = "/sd/logs/2026-11-16-XPN-NAV-99.igc";
         render(w, "skrajne");
@@ -410,7 +416,7 @@ int main(int argc, char** argv) {
             items.push_back(ui::MenuItem::num(l, [] { return -1060.5f; }, [](float) {}, -2000, 2000, 0.5f, 1, "km/h"));
         }
         std::printf("menu: %zu items\n", items.size());
-        auto root = std::make_shared<ui::MenuItem>(ui::MenuItem::sub("root", {ui::MenuItem::sub("Wysokościomierz", items)}));
+        auto root = std::make_shared<ui::MenuItem>(ui::MenuItem::sub("root", {ui::MenuItem::sub(TR("Wysokościomierz", "Altimeter"), items)}));
         ui::Menu m;
         m.open(root);
         m.handleKey(ui::Key::NextLong);
@@ -424,7 +430,7 @@ int main(int argc, char** argv) {
             if (i == 10) savePgm("/tmp/layout/menu.pgm");
             m.handleKey(ui::Key::NextShort);
         }
-        {   // touch scroll column: page down from the top shows items 7..14, page up returns
+        if (items.size() > 14) {   // touch scroll column: page down from the top shows items 7..14, page up returns
             ui::Menu t;
             t.open(root);
             t.handleKey(ui::Key::NextLong);
@@ -504,15 +510,15 @@ int main(int argc, char** argv) {
             for (const auto& t : ui::helpTopics()) help.push_back(M::page(t.title, t.text));
             std::vector<M> nums;
             for (int i = 0; i < 9; i++)
-                nums.push_back(M::num("Liczba " + std::to_string(i), [&] { return val; }, [&](float v) { val = v; }, 0,
+                nums.push_back(M::num(TR("Liczba ", "Number ") + std::to_string(i), [&] { return val; }, [&](float v) { val = v; }, 0,
                                       100, 0.5f, 1, "l"));
             std::vector<M> acts;
-            acts.push_back(M::act("Zamknij", [] {}, true));
-            acts.push_back(M::toggle("Przełącz", [&] { return std::string(flag ? "TAK" : "NIE"); }, [&] { flag = !flag; }));
-            acts.push_back(M::sub("Lista", {M::act("A", [] {}, true), M::act("B", [] {}, true)}));
-            acts.push_back(M::sub("Pusta", {}));
-            return std::make_shared<M>(M::sub("root", {M::sub("Akcje", acts), M::sub("Liczby", nums),
-                                                       M::sub("Pomoc", help), M::act("X", [] {}, true)}));
+            acts.push_back(M::act(TR("Zamknij", "Close"), [] {}, true));
+            acts.push_back(M::toggle(TR("Przełącz", "Toggle"), [&] { return std::string(flag ? TR("TAK", "YES") : TR("NIE", "NO")); }, [&] { flag = !flag; }));
+            acts.push_back(M::sub(TR("Lista", "List"), {M::act("A", [] {}, true), M::act("B", [] {}, true)}));
+            acts.push_back(M::sub(TR("Pusta", "Empty"), {}));
+            return std::make_shared<M>(M::sub("root", {M::sub(TR("Akcje", "Actions"), acts), M::sub(TR("Liczby", "Numbers"), nums),
+                                                       M::sub(TR("Pomoc", "Help"), help), M::act("X", [] {}, true)}));
         };
         ui::Menu m;
         m.open(build());
@@ -537,16 +543,21 @@ int main(int argc, char** argv) {
         ui::Canvas c(fb);
         std::vector<ui::DebugBox> boxes;
         ui::Canvas::debugSink = &boxes;
-        ui::drawBoot(c, {"[OK] Karta SD", "[!!] Barometr MS5611 nie odpowiada – sprawdź QWIIC",
-                         "[..] I2C: 20 51 55 5D 68 6B 76 77", "[!!] Bateria: brak: 0x55 milczy, 0x6B milczy 0.00 V",
-                         "[OK] Strefy 9999, punkty 9999, trasa 999, teren 999 kafli", "[!!] GPS: brak odpowiedzi"},
+        ui::drawBoot(c, {TR("[OK] Karta SD", "[OK] SD card"),
+                         TR("[!!] Barometr MS5611 nie odpowiada – sprawdź QWIIC", "[!!] Barometer MS5611 not responding – check QWIIC"),
+                         "[..] I2C: 20 51 55 5D 68 6B 76 77",
+                         TR("[!!] Bateria: brak (55:nie 6B:nie) 0.00 V", "[!!] Battery: none (55:no 6B:no) 0.00 V"),
+                         TR("[OK] Strefy 9999, punkty 9999, trasa 999, teren 999, mapy 99",
+                            "[OK] Airspace 9999, waypoints 9999, route 999, terrain 999, maps 99"),
+                         TR("[!!] GPS: brak odpowiedzi", "[!!] GPS: no response")},
                      "0.1.0");
         analyse("START", boxes, false);
         boxes.clear();
         ui::drawPowerHint(c);
         analyse("WYŁĄCZANIE", boxes, false);
         boxes.clear();
-        ui::drawPowerOff(c, "Odłącz kabel USB", "przy zasilaniu z USB wyłączenie nie jest możliwe");
+        ui::drawPowerOff(c, TR("Odłącz kabel USB", "Unplug the USB cable"),
+                          TR("przy zasilaniu z USB wyłączenie nie jest możliwe", "the device cannot power off while on USB power"));
         analyse("WYŁĄCZONY", boxes, false);
         ui::Canvas::debugSink = nullptr;
     }

@@ -14,7 +14,10 @@ labels += ["Trasa przelot_dlugi_2026.cup: start", "Lądowisko Zakrzewo Świerczy
 open('/tmp/menu_labels.txt', 'w', encoding='utf-8').write("\n".join(labels) + "\n")
 PY
 g++ -std=c++17 -O1 -Ilib/navcore/src tools/preview/layout_check.cpp lib/navcore/src/*.cpp lib/navcore/src/ui/*.cpp -o /tmp/paranav_layout
+# both languages always run (with "set -e" a problem in the Polish run used to skip the English one)
+rc=0
 echo "== Polish"
-/tmp/paranav_layout sd_card /tmp/menu_labels.txt
+/tmp/paranav_layout sd_card /tmp/menu_labels.txt || rc=1
 echo "== English"
-PARANAV_LANG=en /tmp/paranav_layout sd_card /tmp/menu_labels.txt
+PARANAV_LANG=en /tmp/paranav_layout sd_card /tmp/menu_labels.txt || rc=1
+exit $rc

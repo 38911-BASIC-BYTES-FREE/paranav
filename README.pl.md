@@ -369,6 +369,7 @@ Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Nu
 * Ekran SYSTEM: liczba wolnych fragmentów PSRAM („fr”) i czas najwolniejszego rysowania („rys.”); co 10 s także log `[heap]` na porcie szeregowym.
 * Podpisy stref na ekranie MAPA rysują się na urządzeniu (wcześniej przepełnienie liczby na 32-bitowym ESP32).
 * Dokumentacja: plecki z komorą na GY-63 do druku 3D, schemat podłączenia GY-63, zrzuty ekranów w README.
+* Test układu ekranów (`layout_check.sh`) znowu sprawdza oba języki (wcześniej część angielska była po cichu pomijana); komunikaty testowe i zrzuty ekranów bez mieszania polskiego z angielskim.
 * Aplikacja 0.5.8 – bez zmian funkcji, numer wyrównany z firmware. GitHub: naprawione budowanie APK, nowy workflow „Release”.
 
 ### 0.5.6 – 0.5.7 – 20.11

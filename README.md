@@ -369,6 +369,7 @@ Newest first. Dates are the days the code packages were made (2026). The firmwar
 * SYSTEM screen: number of free PSRAM fragments ("fr") and the slowest redraw ("draw"); also a `[heap]` line on the serial port every 10 s.
 * Airspace labels on the MAP screen are drawn on the device (a number overflow on the 32-bit ESP32 hid them).
 * Documentation: 3D-printable back cover with a GY-63 compartment, GY-63 wiring diagram, screenshots in the README.
+* The screen layout test (`layout_check.sh`) checks both languages again (the English part was silently skipped); test messages and screenshots no longer mix Polish and English.
 * App 0.5.8 – no functional changes, version aligned with the firmware. GitHub: APK build fixed, new "Release" workflow.
 
 ### 0.5.6 – 0.5.7 – 20 Nov

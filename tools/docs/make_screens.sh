@@ -3,8 +3,8 @@
 # (tools/preview/preview.cpp - the same drawing code as the device, a simulated flight with sd_card/ data).
 # Uses a synthetic terrain tile (gentle hills ~110 m, around the simulated flight) so AGL / terrain fields
 # show values. Needs g++ and python3 with numpy + Pillow.
-# Not covered here (made separately): V_*, W_*, X_*, Y_*, Z_* (USB question, charging, airspace exit,
-# route check, inside-airspace alert).
+# V_*, W_*, X_*, Y_*, Z_* (USB question, charging, airspace exit, route check, inside-airspace alert)
+# come from the layout test (tools/preview/layout_check.cpp, scenarios "normalny" and "skrajne").
 set -e
 cd "$(dirname "$0")/../.."
 T=/tmp/paranav_screens
@@ -28,6 +28,32 @@ src, dst = sys.argv[1], sys.argv[2]
 for f in sorted(os.listdir(src)):
     if f.endswith(".pgm"):
         Image.open(os.path.join(src, f)).convert("L").save(os.path.join(dst, f[:-4] + ".png"))
+PY
+done
+# screens from the layout test, in both languages
+python3 - <<'PY'
+import re
+src = open('src/main.cpp', encoding='utf-8').read()
+# same menu label list as tools/preview/layout_check.sh (both languages)
+labels = re.findall(r'M::(?:num|act|toggle|sub)\(\s*"([^"]+)"', src)
+for pl, en in re.findall(r'M::(?:num|act|toggle|sub)\(\s*TR\("([^"]+)",\s*"([^"]+)"\)', src):
+    labels += [pl, en]
+open('/tmp/paranav_screens/menu_labels.txt', 'w', encoding='utf-8').write("\n".join(labels) + "\n")
+PY
+g++ -std=c++17 -O1 -Ilib/navcore/src tools/preview/layout_check.cpp lib/navcore/src/*.cpp lib/navcore/src/ui/*.cpp -o "$T/layout"
+for l in pl en; do
+  rm -rf /tmp/layout && mkdir -p /tmp/layout
+  PARANAV_LANG=$l "$T/layout" sd_card "$T/menu_labels.txt" > /dev/null || true
+  python3 - "$l" <<'PY'
+import sys
+from PIL import Image
+lang = sys.argv[1]
+names = {"normalny_ask1": ("V_usb_pytanie", "V_usb_question"), "normalny_charging": ("W_ladowanie", "W_charging"),
+         "normalny_esc_h": ("X_wyjscie_poziom", "X_exit_level"), "normalny_esc_up": ("X_wyjscie_gora", "X_exit_up"),
+         "normalny_routecheck": ("Y_kontrola_trasy", "Y_route_check"),
+         "skrajne_alert_asp": ("Z_alarm_w_strefie", "Z_alert_inside")}
+for src, (pl, en) in names.items():
+    Image.open(f"/tmp/layout/{src}.pgm").convert("L").save(f"docs/screens/{lang}/{pl if lang == 'pl' else en}.png")
 PY
 done
 echo "screenshots written to docs/screens/pl and docs/screens/en"
