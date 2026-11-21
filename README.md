@@ -285,7 +285,8 @@ Overlays: your position and track, flight track, HOME, line to the target, waypo
 * **towns only** – neighbouring built-up patches are merged, villages are dropped; a town is an outline with a sparse hatch,
 * water as usual, **roads:** z10 motorways and expressways, z11 also primary roads; no railways,
 * **power lines from 220 kV** (a line without a voltage in OSM is drawn too), ticks every 60 px,
-* **a wind farm = one symbol with the number of turbines** (e.g. "×28"); single turbines and pairs stay as dots.
+* **a wind farm = one symbol with the number of turbines** (e.g. "×28"); single turbines and pairs stay as dots,
+* **masts, towers and chimneys** only with an OSM height of at least 100 m (no cranes); rivers without canals, no small ponds.
 
 From z12 on the map shows everything as in the table above. This is a generator change – regenerate the map to see it.
 

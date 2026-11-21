@@ -24,7 +24,9 @@ What is drawn (aimed at a paramotor pilot - obstacles first):
 Far zooms (z10-z11) use a simplified "obstacles" view so the overview stays readable on the e-paper:
   no forest, towns only (merged built-up areas, outline + sparse hatch, villages dropped), water, main
   roads (z10: motorway/trunk, z11: + primary), no railways, power lines >= 220 kV (unknown voltage kept),
-  wind farms as one symbol with the number of turbines (single turbines and pairs stay as dots).
+  wind farms as one symbol with the number of turbines (single turbines and pairs stay as dots),
+  masts/towers/chimneys only when OSM gives a height of at least 100 m (no cranes), rivers without
+  canals, no ponds.
 
 .pak file format (little endian), one file per zoom level:
   0  char[4] "PNMP"      4 u16 version=1     6 u8 zoom   7 u8 0
@@ -225,7 +227,8 @@ def read_pbf(path, data, bbox_world):
                 w = float(tags.get("width", "").replace("m", "")) if lc == "runway" and tags.get("width") else None
             except ValueError:
                 w = None
-            data.lines[lc].append((LineString(pts), {"width": w, "voltage": tags.get("voltage")}))
+            data.lines[lc].append((LineString(pts), {"width": w, "voltage": tags.get("voltage"),
+                                                     "waterway": tags.get("waterway")}))
         elif t == "a":
             ac = area_class(tags)
             pc = point_class(tags)
@@ -532,6 +535,9 @@ def style(z):
         "urban_sparse": z <= 11,                   # outline + sparse hatch instead of the dense one
         "wind_farm_px": 0 if z >= 12 else 40,      # turbines closer than this form one wind farm symbol
         "wind_farm_min": 3,
+        "water_min_px": 0 if z >= 12 else 40,     # drop ponds in the overview (area in px^2)
+        "canals": z >= 12,                         # z10-11: rivers only, no (drainage) canals
+        "mast_min_h": 0 if z >= 12 else 100,       # z10-11: only masts/towers/chimneys >= 100 m tall
     }
     return s
 
@@ -785,7 +791,8 @@ def render_meta(data, z, mx, my, nt, trees, labels, fonts):
                     ar = math.radians(a)
                     d.line([(px, py), (px + r * math.cos(ar), py - r * math.sin(ar))], fill=0, width=2)
                 d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=0)
-        elif cls == "mast" and st["mast"]:
+        elif cls == "mast" and st["mast"] and (not st["mast_min_h"] or (
+                p["kind"] != "crane" and p["height"] and p["height"] >= st["mast_min_h"])):
             h = 14 if z >= 12 else 10
             d.polygon([(px - 9, py + 6), (px, py - h - 4), (px + 9, py + 6)], fill=255)
             d.line([(px - 6, py + 4), (px, py - h), (px + 6, py + 4)], fill=0, width=2)
@@ -947,6 +954,8 @@ def build(args):
                 trees[cls] = (None, [])
                 continue
             gs = [g for g in geoms if g.area >= min_area]
+            if cls == "water" and st["water_min_px"]:
+                gs = [g for g in gs if g.area >= st["water_min_px"] / (scale * scale)]
             if cls == "urban" and st["urban_merge_px"] and gs:
                 # z10-11: glue neighbouring built-up patches into towns, then drop villages
                 r = st["urban_merge_px"] / scale
@@ -963,6 +972,8 @@ def build(args):
         for cls, items in data.lines.items():
             if cls == "coast":
                 continue
+            if cls == "river" and not st["canals"]:
+                items = [(g, a) for g, a in items if a.get("waterway") != "canal"]
             if cls == "power" and st["power_min_kv"]:
                 # z10-11: main transmission lines only; a line without a voltage tag is kept (obstacle)
                 items = [(g, a) for g, a in items

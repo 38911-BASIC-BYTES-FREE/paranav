@@ -285,7 +285,8 @@ Na mapę nakładane są: Twoja pozycja i kurs, ślad, START, linia do celu, punk
 * **tylko miasta** – sąsiadujące zabudowania są sklejane, wioski pomijane; miasto to kontur z rzadką kratką,
 * woda jak zwykle, **drogi:** na z10 autostrady i ekspresówki, na z11 dodatkowo drogi główne; bez kolei,
 * **linie energetyczne od 220 kV** (linia bez podanego w OSM napięcia też jest rysowana), kreski co 60 px,
-* **farma wiatrowa = jeden znak z liczbą wiatraków** (np. „×28”); pojedyncze wiatraki i pary nadal jako kropki.
+* **farma wiatrowa = jeden znak z liczbą wiatraków** (np. „×28”); pojedyncze wiatraki i pary nadal jako kropki,
+* **maszty, wieże i kominy** tylko z wysokością w OSM od 100 m (bez dźwigów); rzeki bez kanałów, bez małych stawów.
 
 Od z12 mapa pokazuje wszystko jak w tabeli wyżej. Zmiana dotyczy generatora – żeby ją zobaczyć, wygeneruj mapę od nowa.
 
