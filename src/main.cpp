@@ -233,8 +233,22 @@ static bool endsWith(const std::string& s, const char* suf) {
     return strcasecmp(s.c_str() + s.size() - n, suf) == 0;
 }
 
+// PSRAM thresholds (heap_caps_malloc_extmem_enable): allocations of at least this size go to PSRAM first.
+// While loading the card data everything from 32 B goes to PSRAM: a real airspace file is thousands of small
+// polygon buffers that would fill the internal RAM. While running, short-lived small objects (strings,
+// vectors built on every redraw / every second) use the internal RAM instead (PSRAM is the fallback when it is
+// full). On ESP-IDF 4.4 (arduino-esp32 2.0.x) malloc/free walk the whole list of free blocks, so mixing this
+// churn with the thousands of airspace buffers fragmented the PSRAM heap more and more and made every
+// allocation slower - the UI got sluggish after 10-20 minutes.
+static constexpr size_t kExtmemLoad = 32;
+static constexpr size_t kExtmemRun = 1024;
+
 static void loadDataImpl();
 static void loadData() {
+    heap_caps_malloc_extmem_enable(kExtmemLoad);
+    struct RestoreExtmem {
+        ~RestoreExtmem() { heap_caps_malloc_extmem_enable(kExtmemRun); }
+    } restoreExtmem;  // also on the out-of-memory path below
     try {
         loadDataImpl();
     } catch (const std::bad_alloc&) {
@@ -868,7 +882,7 @@ static void evaluateAlerts() {
 
 // ------------------------------------------------------------------ 1 Hz cycle
 static void onSecond(bool haveFix, const GpsFix& g, const BaroSnapshot& b) {
-    crumb(std::string(TR("obliczenia 1 Hz", "1 Hz computation")) + (menu.isOpen() ? TR(" (w menu)", " (in menu)") : ""));
+    diag::crumb(menu.isOpen() ? TR("obliczenia 1 Hz (w menu)", "1 Hz computation (in menu)") : TR("obliczenia 1 Hz", "1 Hz computation"));
     uint32_t up = millis() / 1000;
     if (haveFix) fc.update(g, b, up);
     else fc.updateNoGps(b, up);
@@ -1000,10 +1014,14 @@ static const char* evName(board::Ev t) {
 
 static bool handleEventImpl(const board::Event& e);
 static bool handleEvent(const board::Event& e) {
-    std::string where = menu.isOpen() ? menu.describe() : std::string(TR("ekran ", "screen ")) + ui::screenName(screen);
-    crumb(where + ": " + evName(e.type));
+    char where[64], b[96];
+    if (menu.isOpen()) snprintf(where, sizeof where, "%s", menu.describe().c_str());
+    else snprintf(where, sizeof where, "%s%s", TR("ekran ", "screen "), ui::screenName(screen));
+    snprintf(b, sizeof b, "%s: %s", where, evName(e.type));
+    diag::crumb(b);
     bool r = handleEventImpl(e);
-    crumb(std::string(TR("po: ", "after: ")) + where + ": " + evName(e.type));
+    snprintf(b, sizeof b, "%s%s: %s", TR("po: ", "after: "), where, evName(e.type));
+    diag::crumb(b);
     return r;
 }
 
@@ -1152,8 +1170,12 @@ static bool handleEventImpl(const board::Event& e) {
 
 // ------------------------------------------------------------------ rendering
 static void render(bool full) {
-    crumb(std::string(TR("rysowanie: ", "drawing: ")) + (menu.isOpen() ? menu.describe() : ui::screenName(screen)) +
-          (full ? TR(" (pełne)", " (full)") : ""));
+    {
+        char b[96];
+        snprintf(b, sizeof b, "%s%s%s", TR("rysowanie: ", "drawing: "),
+                 menu.isOpen() ? menu.describe().c_str() : ui::screenName(screen), full ? TR(" (pełne)", " (full)") : "");
+        diag::crumb(b);
+    }
     ui::Canvas c(board::framebuffer());
     c.setFlip(settings.flip180);
     ui::UiContext u;
@@ -1369,12 +1391,14 @@ void setup() {
     // powered on by plugging USB in (a normal start, not a crash restart): ask, default = charging
     usbPower = board::usbPowered();
     if (usbPower && !diag::boot().unexpected) askUsbMode(ui::UC_CHARGE);
+    heap_caps_malloc_extmem_enable(kExtmemRun);  // from now on small temporary objects use internal RAM
     render(true);
     crumb(TR("praca", "running"));
 }
 
 void loop() {
     static uint32_t lastSecond = 0, lastRender = 0, lastFull = 0, lastBatt = 0;
+    static uint32_t renderMaxMs = 0;  // slowest redraw since the last 10 s report
     static bool dirty = true;
     static bool userDirty = false;  // redraw caused by a button / touch
     uint32_t now = millis();
@@ -1508,6 +1532,20 @@ void loop() {
         sys.battFullMah = bt.fullMah;
         sys.freeHeapKb = heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024;
         sys.freePsramKb = heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024;
+        {
+            multi_heap_info_t hp, hi;
+            heap_caps_get_info(&hp, MALLOC_CAP_SPIRAM);
+            heap_caps_get_info(&hi, MALLOC_CAP_INTERNAL);
+            sys.psramFreeBlocks = hp.free_blocks;
+            sys.renderMaxMs = renderMaxMs;
+            Serial.printf("[heap] up %us  PSRAM free %u kB, free blocks %u, used blocks %u, largest %u kB | "
+                          "internal free %u kB, free blocks %u, largest %u kB | render max %u ms\n",
+                          (unsigned)(now / 1000), (unsigned)(hp.total_free_bytes / 1024), (unsigned)hp.free_blocks,
+                          (unsigned)hp.allocated_blocks, (unsigned)(hp.largest_free_block / 1024),
+                          (unsigned)(hi.total_free_bytes / 1024), (unsigned)hi.free_blocks,
+                          (unsigned)(hi.largest_free_block / 1024), (unsigned)renderMaxMs);
+            renderMaxMs = 0;
+        }
         sys.gpsSentences = gps.sentences();
         sys.gpsCsErr = gps.checksumErrors();
         board::lastTouch(sys.touchX, sys.touchY);
@@ -1571,7 +1609,9 @@ void loop() {
         else if (view == 1 || view == 2 || view == 4) full = quickInView >= 20;
         else if (view == 5) full = quickInView >= 10;
         else full = settings.fullRefreshS > 0 && now - lastFull > (uint32_t)settings.fullRefreshS * 1000;
+        uint32_t t0 = millis();
         render(full);
+        if (!full) renderMaxMs = std::max(renderMaxMs, (uint32_t)(millis() - t0));  // full refresh is slow by design
         quickInView = full ? 0 : quickInView + 1;
         if (full) lastFull = now;
         lastView = view;

@@ -550,7 +550,8 @@ template <class ToScreen>
 static void drawRouteOnMap(Canvas& c, const UiContext& u, ToScreen to, int x0, int y0, int x1, int y1) {
     if (!u.route || u.route->pts.empty()) return;
     const auto& pts = u.route->pts;
-    std::vector<Pt> p;
+    static std::vector<Pt> p;  // reused between frames: no heap churn on every redraw
+    p.clear();
     p.reserve(pts.size());
     for (const auto& w : pts) p.push_back(to(w.lat, w.lon));
     if (p.size() > 1) c.polyline(p.data(), (int)p.size(), BLACK, 2);
@@ -638,7 +639,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
         if (u.asp) {
             const auto& zs = u.asp->zones();
             float dLat = viewR / 111000.f, dLon = dLat / std::max(0.2f, (float)std::cos(lat * nav::kDeg2Rad));
-            std::vector<Pt> pts;
+            static std::vector<Pt> pts;  // reused between frames
             for (size_t i = 0; i < zs.size(); i++) {
                 const auto& a = zs[i];
                 if (lat < a.minLat - dLat || lat > a.maxLat + dLat || lon < a.minLon - dLon || lon > a.maxLon + dLon) continue;
@@ -659,7 +660,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
         if (u.asp) {
             const auto& zs = u.asp->zones();
             float dLat = viewR / 111000.f, dLon = dLat / std::max(0.2f, (float)std::cos(lat * nav::kDeg2Rad));
-            std::vector<Pt> pts;
+            static std::vector<Pt> pts;  // reused between frames
             for (size_t i = 0; i < zs.size(); i++) {
                 const auto& a = zs[i];
                 if (lat < a.minLat - dLat || lat > a.maxLat + dLat || lon < a.minLon - dLon || lon > a.maxLon + dLon) continue;
@@ -672,7 +673,7 @@ static void drawMap(Canvas& c, const UiContext& u) {
                 c.polyline(pts.data(), (int)pts.size(), BLACK, t, true, inactive ? 6 : 0);
                 // label at the vertex closest to view centre (inside the view)
                 int best = -1;
-                long bd = 1L << 40;
+                long bd = 0x7FFFFFFFL;  // was 1L << 40: overflows the 32-bit long on ESP32 (labels never drawn)
                 for (size_t k = 0; k < pts.size(); k++) {
                     if (pts[k].x < 20 || pts[k].x > MW - 140 || pts[k].y < MY + 20 || pts[k].y > MY + MH - 10) continue;
                     long dx = pts[k].x - v.cx, dy = pts[k].y - v.cy, d = dx * dx + dy * dy;
@@ -703,7 +704,8 @@ static void drawMap(Canvas& c, const UiContext& u) {
         // track
         if (u.fc) {
             const auto& tr = u.fc->track();
-            std::vector<Pt> tp;
+            static std::vector<Pt> tp;  // reused between frames (the track grows every 2 s)
+            tp.clear();
             tp.reserve(tr.size() + 1);
             for (auto& p : tr) tp.push_back(v.toScreen(p.lat, p.lon));
             if (n.fix) tp.push_back({v.cx, v.cy});
@@ -944,7 +946,7 @@ static void drawTopo(Canvas& c, const UiContext& u) {
         double vlat0, vlon0, vlat1, vlon1;
         nav::topoToLatLon(pr.ox, pr.oy, z, vlat0, vlon0);
         nav::topoToLatLon(pr.ox + W, pr.oy + TH, z, vlat1, vlon1);
-        std::vector<Pt> pts;
+        static std::vector<Pt> pts;  // reused between frames
         for (const auto& a : zs) {
             if (a.minLat > vlat0 || a.maxLat < vlat1 || a.minLon > vlon1 || a.maxLon < vlon0) continue;
             if (u.set->isIgnoredClass(a.cls)) continue;
@@ -979,7 +981,8 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     // flown track
     if (u.fc) {
         const auto& tr = u.fc->track();
-        std::vector<Pt> tp;
+        static std::vector<Pt> tp;  // reused between frames (the track grows every 2 s)
+        tp.clear();
         tp.reserve(tr.size() + 1);
         for (auto& p : tr) tp.push_back(pr.to(p.lat, p.lon));
         if (n.fix) tp.push_back(pr.to(n.lat, n.lon));
@@ -1628,8 +1631,10 @@ static void drawSystem(Canvas& c, const UiContext& u) {
         if (fn.size() > 15) fn = fn.substr(fn.size() - 10);  // "NAV-01.igc"
         line(494, TR("Zapis lotu", "Flight log"), s.recording ? fn : TR("nie", "no"));
     }
-    std::snprintf(b, sizeof b, "%u / %u kB", (unsigned)s.freeHeapKb, (unsigned)s.freePsramKb);
-    line(494, TR("RAM / PSRAM wolne", "RAM / PSRAM free"), b);
+    // free RAM / PSRAM [kB] and the number of free PSRAM fragments ("fr", grows with fragmentation)
+    std::snprintf(b, sizeof b, "%u/%uk %ufr", (unsigned)s.freeHeapKb, (unsigned)s.freePsramKb,
+                  (unsigned)s.psramFreeBlocks);
+    line(494, TR("RAM/PSRAM", "RAM/PSRAM"), b);
     {
         std::string v;
         if (s.fanetState == 0) v = TR("wyłączony", "off");
@@ -1641,7 +1646,9 @@ static void drawSystem(Canvas& c, const UiContext& u) {
         }
         line(494, "FANET", v);
     }
-    line(494, TR("Wersja", "Version"), s.version);
+    // version + slowest screen redraw in the last 10 s (diagnostics of a sluggish UI)
+    std::snprintf(b, sizeof b, TR("%s  rys. %u ms", "%s  draw %u ms"), s.version.c_str(), (unsigned)s.renderMaxMs);
+    line(494, TR("Wersja", "Version"), b);
     line(494, TR("Z telefonu", "From phone"), s.phoneLast.empty() ? "–" : s.phoneLast);
     c.text(494, y, "I2C:", font_s, BLACK);
     c.text(944, y, trunc(s.i2cDevices, font_s, 390), font_s, BLACK, RIGHT);

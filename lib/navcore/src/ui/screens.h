@@ -66,6 +66,8 @@ struct SysInfo {
     std::string version = "0.1";
     int touchX = -1, touchY = -1;
     uint32_t freeHeapKb = 0, freePsramKb = 0;
+    uint32_t psramFreeBlocks = 0;  // PSRAM fragmentation: number of free fragments (diagnostics)
+    uint32_t renderMaxMs = 0;      // slowest screen redraw in the last 10 s (diagnostics)
     uint32_t gpsSentences = 0, gpsCsErr = 0;
     std::vector<std::string> loadErrors;
 };
