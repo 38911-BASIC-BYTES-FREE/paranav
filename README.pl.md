@@ -29,7 +29,7 @@ ParaNav to komputer lotu do motoparalotni, zbudowany na gotowej płytce z dużym
 
 **Sprzęt:** LilyGO T5 E-Paper S3 Pro (ESP32-S3, ekran 4,7″ 960×540, GPS, radio LoRa, bateria) + barometr MS5611 za kilkanaście złotych albo BlueFlyVario. Interfejs po polsku lub angielsku, pomoc wbudowana w menu.
 
-## Funkcje – szczegóły (wersja 0.5.7)
+## Funkcje – szczegóły (wersja 0.5.8)
 
 | Obszar | Co działa |
 |---|---|
@@ -283,6 +283,11 @@ Wbudowany moduł SX1262 pracuje w otwartym protokole **FANET** (868,2 MHz, LoRa 
 Alternatywnie arduino-cli (rdzeń esp32 2.0.14): `tools/build_arduino_cli.sh`.
 
 **USB od wersji z mapami:** firmware używa trybu USB-OTG (TinyUSB, `ARDUINO_USB_MODE=0`), bo tylko w nim karta SD może być dyskiem USB. Port szeregowy nadal działa (logi, wgrywanie przez `pio run -t upload`), ale w systemie to inne urządzenie COM niż wcześniej. Jeśli wgrywanie się nie uda (np. program zawiesił się przy starcie): przytrzymaj BOOT, krótko RST, puść BOOT i wgraj ponownie.
+
+### Gotowe pliki (GitHub Releases)
+Bez instalowania PlatformIO: w zakładce **Releases** są gotowe pliki każdej wersji – `paranav-<wersja>-firmware.bin` (sam program, adres 0x10000), `paranav-<wersja>-full.bin` (pełny obraz dla czystej płytki, adres 0x0) i `paranav-<wersja>.apk` (aplikacja). Firmware wgrasz z przeglądarki Chrome/Edge przez https://espressif.github.io/esptool-js/ (*Connect* → plik pod adres `0x0` dla `full.bin` → *Program*).
+
+**Nowa wersja:** ustaw ten sam numer w `src/config.h` (`PARANAV_VERSION`) i `android/app/build.gradle` (`versionName`, `versionCode` +1), opcjonalnie opisz zmiany w `docs/releases/v<wersja>.md`, wyślij na `main`, a potem GitHub → **Actions → Release → Run workflow**. Workflow uruchamia testy, buduje firmware i APK i publikuje release `v<wersja>` (gdy taki już istnieje – zatrzymuje się).
 
 ### Testy bez sprzętu
 * `tools/run_tests.sh` – testy jednostkowe (NMEA, Kalman, wiatr, parser OpenAir, aktywacje, kolizje ze strefami, IGC, .cup, teren, logika lotu, alarmy, przesyłanie plików, dekoder mapy TOPO, kodowanie FANET i ocena zbliżeń).

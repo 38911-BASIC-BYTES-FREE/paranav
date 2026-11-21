@@ -2,7 +2,7 @@
 // Source: LilyGO repo docs/pinmap.md (schematic V1.0 24-12-24).
 #pragma once
 
-#define PARANAV_VERSION "0.5.7"
+#define PARANAV_VERSION "0.5.8"
 
 // Shared I2C bus (PCA9535, PCF8563, BQ27220, GT911, TPS65185, BQ25896 and the external MS5611 via QWIIC)
 #define PIN_I2C_SDA 39

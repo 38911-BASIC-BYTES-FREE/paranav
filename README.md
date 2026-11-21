@@ -29,7 +29,7 @@ ParaNav is a flight computer for paramotor pilots, built on an off-the-shelf boa
 
 **Hardware:** LilyGO T5 E-Paper S3 Pro (ESP32-S3, 4.7″ 960×540 screen, GPS, LoRa radio, battery) + an inexpensive MS5611 barometer or a BlueFlyVario. English or Polish user interface, built-in help in the menu.
 
-## Features in detail (version 0.5.7)
+## Features in detail (version 0.5.8)
 
 | Area | What works |
 |---|---|
@@ -283,6 +283,11 @@ The on-board SX1262 module speaks the open **FANET** protocol (868.2 MHz, LoRa S
 Alternatively arduino-cli (esp32 core 2.0.14): `tools/build_arduino_cli.sh`.
 
 **USB since the map version:** the firmware uses the USB-OTG mode (TinyUSB, `ARDUINO_USB_MODE=0`), because only then can the SD card be a USB drive. The serial port still works (logs, uploading with `pio run -t upload`), but it is a different COM device than before. If uploading fails (e.g. the program hangs at start): hold BOOT, press RST briefly, release BOOT and upload again.
+
+### Ready-made files (GitHub Releases)
+No PlatformIO needed: **Releases** has the files of every version – `paranav-<version>-firmware.bin` (application only, address 0x10000), `paranav-<version>-full.bin` (complete image for a blank board, address 0x0) and `paranav-<version>.apk` (the app). Flash the firmware from Chrome/Edge with https://espressif.github.io/esptool-js/ (*Connect* → the file at address `0x0` for `full.bin` → *Program*).
+
+**New version:** set the same number in `src/config.h` (`PARANAV_VERSION`) and `android/app/build.gradle` (`versionName`, `versionCode` +1), optionally describe the changes in `docs/releases/v<version>.md`, push to `main`, then GitHub → **Actions → Release → Run workflow**. The workflow runs the tests, builds the firmware and the APK and publishes release `v<version>` (it stops if that release already exists).
 
 ### Tests without hardware
 * `tools/run_tests.sh` – unit tests (NMEA, Kalman, wind, OpenAir parser, activations, airspace checks, IGC, .cup, terrain, flight logic, alerts, file transfer, TOPO map decoder, FANET coding and proximity rating).

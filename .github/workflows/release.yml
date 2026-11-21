@@ -1,0 +1,122 @@
+# Publishes a ParaNav release: firmware for the LilyGO T5 E-Paper S3 Pro + the Android app (APK).
+# GitHub -> "Actions" -> "Release" -> "Run workflow" (branch main) -> wait (~5 min) -> "Releases".
+#
+# The version comes from the code: PARANAV_VERSION in src/config.h, and it must match versionName in
+# android/app/build.gradle. The release is tagged v<version>; if that release already exists the run
+# stops without changing anything. Release notes: docs/releases/v<version>.md (optional).
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark as a pre-release (test version)'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        name: Read and check the version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fw=$(sed -n 's/^#define PARANAV_VERSION "\(.*\)"/\1/p' src/config.h)
+          app=$(sed -n "s/^ *versionName '\(.*\)'/\1/p" android/app/build.gradle)
+          echo "firmware: $fw, app: $app"
+          if [ -z "$fw" ] || [ "$fw" != "$app" ]; then
+            echo "::error::Firmware ($fw) and app ($app) versions differ - set the same version in src/config.h and android/app/build.gradle"
+            exit 1
+          fi
+          if gh release view "v$fw" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release v$fw already exists - raise the version first"
+            exit 1
+          fi
+          echo "version=$fw" >> "$GITHUB_OUTPUT"
+
+  firmware:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('platformio.ini') }}
+      - name: Host tests
+        run: sh tools/run_tests.sh
+      - name: Build firmware
+        run: |
+          pip install platformio "esptool<5"
+          pio run -e t5s3pro
+      - name: Package
+        run: |
+          v=${{ needs.version.outputs.version }}
+          b=.pio/build/t5s3pro
+          boot_app0=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -1)
+          mkdir -p dist
+          cp $b/firmware.bin dist/paranav-$v-firmware.bin
+          # one image for an empty / erased board, written at address 0x0
+          # (bootloader 0x0, partition table 0x8000, boot_app0 0xe000, application 0x10000)
+          python -m esptool --chip esp32s3 merge_bin -o dist/paranav-$v-full.bin \
+            --flash_mode keep --flash_freq keep --flash_size 16MB \
+            0x0 $b/bootloader.bin 0x8000 $b/partitions.bin 0xe000 "$boot_app0" 0x10000 $b/firmware.bin
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/*.bin
+
+  apk:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/*.apk dist/paranav-${{ needs.version.outputs.version }}.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
+  release:
+    needs: [version, firmware, apk]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${{ needs.version.outputs.version }}
+          notes=docs/releases/v$v.md
+          [ -f "$notes" ] || { echo "ParaNav $v" > /tmp/notes.md; notes=/tmp/notes.md; }
+          pre=""
+          [ "${{ inputs.prerelease }}" = "true" ] && pre="--prerelease"
+          gh release create "v$v" dist/* --target "$GITHUB_SHA" --title "ParaNav $v" --notes-file "$notes" $pre
