@@ -288,7 +288,7 @@ Na mapę nakładane są: Twoja pozycja i kurs, ślad, START, linia do celu, punk
 * **farma wiatrowa = jeden znak z liczbą wiatraków** (np. „×28”); pojedyncze wiatraki i pary nadal jako kropki,
 * **maszty, wieże i kominy** tylko z wysokością w OSM od 100 m (bez dźwigów); rzeki bez kanałów, bez małych stawów.
 
-Od z12 mapa pokazuje wszystko jak w tabeli wyżej. Zmiana dotyczy generatora – żeby ją zobaczyć, wygeneruj mapę od nowa.
+Na **z12** maszty i wieże są pokazywane od 40 m wysokości (maszty telekomunikacyjne, kominy i flary zawsze), a ich skupiska jako jeden symbol z liczbą; dźwigi pojawiają się dopiero na z14. Od z13 mapa pokazuje wszystko jak w tabeli wyżej (poza dźwigami). Zmiana dotyczy generatora – żeby ją zobaczyć, wygeneruj mapę od nowa.
 
 > Mapa z OSM jest pomocą orientacyjną, **nie mapą lotniczą** – linie energetyczne i przeszkody mogą być niekompletne.
 

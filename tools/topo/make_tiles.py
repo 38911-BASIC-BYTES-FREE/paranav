@@ -27,6 +27,8 @@ Far zooms (z10-z11) use a simplified "obstacles" view so the overview stays read
   wind farms as one symbol with the number of turbines (single turbines and pairs stay as dots),
   masts/towers/chimneys only when OSM gives a height of at least 100 m (no cranes), rivers without
   canals, no ponds.
+z12: masts/towers from 40 m (telecom towers, chimneys and flares always), clusters closer than 30 px
+  as one symbol "xN", cranes only from z14.
 
 .pak file format (little endian), one file per zoom level:
   0  char[4] "PNMP"      4 u16 version=1     6 u8 zoom   7 u8 0
@@ -462,10 +464,23 @@ def max_kv(voltage):
     return best
 
 
-def wind_farms(points, scale, dist_px, min_count):
-    """Groups wind turbines closer than dist_px (single linkage) at this zoom.
-    -> (farms [(x_world, y_world, count)], set of point indices drawn as part of a farm)"""
-    idx = [i for i, p in enumerate(points) if p["cls"] == "wind"]
+def mast_visible(p, st):
+    """Is a mast/tower/chimney/crane point drawn at this zoom (style st)?"""
+    if p["kind"] == "crane" and not st["cranes"]:
+        return False
+    if not st["mast_min_h"]:
+        return True
+    if p["height"] and p["height"] >= st["mast_min_h"]:
+        return True
+    return p["kind"] in st["mast_always"]
+
+
+def wind_farms(points, scale, dist_px, min_count, select=None):
+    """Groups points (default: wind turbines) closer than dist_px (single linkage) at this zoom.
+    -> (groups [(x_world, y_world, count)], set of point indices drawn as part of a group)"""
+    if select is None:
+        select = lambda p: p["cls"] == "wind"
+    idx = [i for i, p in enumerate(points) if select(p)]
     if not idx or dist_px <= 0:
         return [], set()
     xy = np.array([(points[i]["x"] * scale, points[i]["y"] * scale) for i in idx])
@@ -537,7 +552,10 @@ def style(z):
         "wind_farm_min": 3,
         "water_min_px": 0 if z >= 12 else 40,     # drop ponds in the overview (area in px^2)
         "canals": z >= 12,                         # z10-11: rivers only, no (drainage) canals
-        "mast_min_h": 0 if z >= 12 else 100,       # z10-11: only masts/towers/chimneys >= 100 m tall
+        "mast_min_h": 0 if z >= 13 else (40 if z == 12 else 100),  # min. height [m] of a mast/tower
+        "mast_always": ("communications_tower", "chimney", "flare") if z == 12 else (),  # shown without height
+        "cranes": z >= 14,                         # cranes (ports, building sites) only in the closest view
+        "mast_group_px": 30 if z == 12 else 0,     # z12: masts closer than this form one symbol "xN"
     }
     return s
 
@@ -545,7 +563,7 @@ def style(z):
 # ----------------------------------------------------------------------------- labels
 
 
-def place_labels(data, z, fonts, draw_probe, farms=()):
+def place_labels(data, z, fonts, draw_probe, farms=(), mast_groups=(), hidden=frozenset()):
     """Global label placement for one zoom (so labels are identical on neighbouring tiles).
     Returns list of (x, y, text, font, anchor) in global pixel coords."""
     st = style(z)
@@ -567,10 +585,13 @@ def place_labels(data, z, fonts, draw_probe, farms=()):
             txt = p["icao"] if (z <= 11 and p["icao"]) else (p["name"] or p["icao"])
             if txt:
                 cands.append((90, x, y, txt, fonts.get(19, True), "lm", 15))
-        elif cls in ("mast", "wind") and st["height_labels"] and p["height"] and p["height"] >= 25:
+        elif cls in ("mast", "wind") and st["height_labels"] and p["height"] and p["height"] >= 25 \
+                and (cls != "mast" or mast_visible(p, st)):
             cands.append((30, x, y, f"{int(round(p['height']))}", fonts.get(16), "lm", 11))
     for fx, fy, cnt in farms:  # "x28" next to a wind farm symbol
         cands.append((85, fx * scale, fy * scale, f"×{cnt}", fonts.get(19, True), "lm", 17))
+    for fx, fy, cnt in mast_groups:  # "x5" next to a group of masts
+        cands.append((60, fx * scale, fy * scale, f"×{cnt}", fonts.get(17, True), "lm", 13))
     cands.sort(key=lambda c: -c[0])
     placed, boxes = [], {}
     G = 64
@@ -773,9 +794,22 @@ def render_meta(data, z, mx, my, nt, trees, labels, fonts):
             ar = math.radians(a)
             d.line([(px, py), (px + (r - 2) * math.cos(ar), py - (r - 2) * math.sin(ar))], fill=0, width=3)
 
+    def mast_symbol(px, py):
+        h = 14 if z >= 12 else 10
+        d.polygon([(px - 9, py + 6), (px, py - h - 4), (px + 9, py + 6)], fill=255)
+        d.line([(px - 6, py + 4), (px, py - h), (px + 6, py + 4)], fill=0, width=2)
+        d.ellipse([px - 3, py - h - 3, px + 3, py - h + 3], fill=0)
+
+    # groups of masts (z12): one symbol, the count is a label
+    in_group = trees.get("mast_in_group", set())
+    for fx, fy, _cnt in trees.get("mast_groups", ()):
+        px, py = fx * scale - ox, fy * scale - oy
+        if -30 <= px <= W + 30 and -30 <= py <= H + 30:
+            mast_symbol(px, py)
+
     # point symbols
     for i_pt, p in enumerate(data.points):
-        if i_pt in in_farm:
+        if i_pt in in_farm or i_pt in in_group:
             continue
         px, py = p["x"] * scale - ox, p["y"] * scale - oy
         if px < -20 or py < -20 or px > W + 20 or py > H + 20:
@@ -791,12 +825,8 @@ def render_meta(data, z, mx, my, nt, trees, labels, fonts):
                     ar = math.radians(a)
                     d.line([(px, py), (px + r * math.cos(ar), py - r * math.sin(ar))], fill=0, width=2)
                 d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=0)
-        elif cls == "mast" and st["mast"] and (not st["mast_min_h"] or (
-                p["kind"] != "crane" and p["height"] and p["height"] >= st["mast_min_h"])):
-            h = 14 if z >= 12 else 10
-            d.polygon([(px - 9, py + 6), (px, py - h - 4), (px + 9, py + 6)], fill=255)
-            d.line([(px - 6, py + 4), (px, py - h), (px + 6, py + 4)], fill=0, width=2)
-            d.ellipse([px - 3, py - h - 3, px + 3, py - h + 3], fill=0)
+        elif cls == "mast" and st["mast"] and mast_visible(p, st):
+            mast_symbol(px, py)
         elif cls in AERO:
             r = 10 if cls == "aerodrome" else 7
             d.ellipse([px - r - 2, py - r - 2, px + r + 2, py + r + 2], fill=255)
@@ -919,6 +949,20 @@ def build(args):
         print(f"  {n} objects, {time.time() - t:.0f} s", flush=True)
     print("  " + ", ".join(f"{k}={v}" for k, v in data.stats().items()), flush=True)
 
+    # obstacles in the data: kind -> (count, with a height, >= 40 m, >= 100 m) - to tune the far views
+    ms = {}
+    for p in data.points:
+        if p["cls"] == "mast":
+            c = ms.setdefault(p["kind"], [0, 0, 0, 0])
+            c[0] += 1
+            h = p["height"] or 0
+            c[1] += bool(p["height"])
+            c[2] += h >= 40
+            c[3] += h >= 100
+    if ms:
+        print("  masts/towers: " + ", ".join(f"{k} {v[0]} (height {v[1]}, >=40 m {v[2]}, >=100 m {v[3]})"
+                                             for k, v in sorted(ms.items(), key=lambda kv: -kv[1][0])), flush=True)
+
     sea = build_sea(data.lines["coast"], bbox_world)
     if sea:
         print(f"  sea: {len(sea)} area(s)")
@@ -989,7 +1033,13 @@ def build(args):
         trees["wind_farms"], trees["wind_in_farm"] = farms, in_farm
         if farms:
             print(f"  z{z}: {len(farms)} wind farm symbol(s) for {len(in_farm)} turbines", flush=True)
-        labels = place_labels(data, z, fonts, probe, farms)
+        groups, in_group = wind_farms(data.points, scale, st["mast_group_px"], 3,
+                                      select=lambda p: p["cls"] == "mast" and st["mast"] and mast_visible(p, st))
+        trees["mast_groups"], trees["mast_in_group"] = groups, in_group
+        n_masts = sum(1 for p in data.points if p["cls"] == "mast" and st["mast"] and mast_visible(p, st))
+        print(f"  z{z}: {n_masts} mast/tower symbol(s)"
+              + (f", {len(in_group)} of them in {len(groups)} group(s)" if groups else ""), flush=True)
+        labels = place_labels(data, z, fonts, probe, farms, groups)
 
         index = [(0xFFFFFFFF, 0)] * (nx * ny)
         blobs, dedup = [], {}

@@ -288,7 +288,7 @@ Overlays: your position and track, flight track, HOME, line to the target, waypo
 * **a wind farm = one symbol with the number of turbines** (e.g. "×28"); single turbines and pairs stay as dots,
 * **masts, towers and chimneys** only with an OSM height of at least 100 m (no cranes); rivers without canals, no small ponds.
 
-From z12 on the map shows everything as in the table above. This is a generator change – regenerate the map to see it.
+At **z12** masts and towers are shown from 40 m (telecom towers, chimneys and flares always) and clusters as one symbol with a count; cranes appear only at z14. From z13 on the map shows everything as in the table above (except cranes). This is a generator change – regenerate the map to see it.
 
 > The OSM-based map is an orientation aid, **not an aeronautical chart** – power lines and obstacles may be incomplete.
 
