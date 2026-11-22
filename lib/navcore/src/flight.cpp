@@ -41,6 +41,10 @@ void FlightComputer::common(const BaroSnapshot& b, uint32_t uptimeS) {
 
 void FlightComputer::update(const GpsFix& g, const BaroSnapshot& b, uint32_t uptimeS) {
     takeoffEvent = landingEvent = false;
+    if (pendingLand_) {  // "LANDED" answered since the last update
+        pendingLand_ = false;
+        if (st_.phase == Phase::Flying) landNow();
+    }
     float dt = lastUptime_ ? (float)(uptimeS - lastUptime_) : 1.f;
     if (dt < 0.5f) dt = 0.5f;
     if (dt > 5.f) dt = 5.f;
@@ -84,6 +88,10 @@ void FlightComputer::update(const GpsFix& g, const BaroSnapshot& b, uint32_t upt
 
 void FlightComputer::updateNoGps(const BaroSnapshot& b, uint32_t uptimeS) {
     takeoffEvent = landingEvent = false;
+    if (pendingLand_) {
+        pendingLand_ = false;
+        if (st_.phase == Phase::Flying) landNow();
+    }
     float dt = lastUptime_ ? (float)(uptimeS - lastUptime_) : 1.f;
     if (dt <= 0) return;
     lastUptime_ = uptimeS;
@@ -205,24 +213,30 @@ void FlightComputer::flightLogic(const GpsFix& g) {
         }
     }
 
-    // --- landing detection
-    if (g.speedKmh < 5 && std::fabs(st_.vario1s) < 0.5f) {
-        if (++slowCount_ >= 60) {
-            st_.phase = Phase::Ground;
-            landingEvent = true;
-            lastFlight.valid = true;
-            lastFlight.durationS = st_.flightTimeS;
-            lastFlight.maxAlt = st_.maxAlt;
-            lastFlight.maxClimb = st_.maxClimb;
-            lastFlight.maxSink = st_.maxSink;
-            lastFlight.distKm = st_.distFlownM / 1000.f;
-            lastFlight.maxDistHomeKm = st_.maxDistHomeM / 1000.f;
-            lastFlight.fuelUsedL = st_.fuelUsedL;
-            st_.circling = false;
-            fastCount_ = 0;
+    // --- landing detection (see the header: question instead of an immediate end)
+    bool asking = st_.landingAsk;  // hysteresis: while asking, only clear movement closes the question
+    bool still = g.speedKmh < (asking ? 8.f : 5.f) && std::fabs(st_.vario1s) < (asking ? 1.0f : 0.5f);
+    if (still) {
+        if (slowCount_++ == 0) stillSince_ = st_.uptimeS;
+        st_.landingStillS = (uint16_t)std::min<uint32_t>(st_.uptimeS - stillSince_, 65535);
+        if ((uint32_t)slowCount_ >= kLandAskS) {
+            bool high = !std::isnan(st_.aglTerrain) && st_.aglTerrain >= kLandHighAglM;
+            if (high) {
+                st_.landingAsk = false;  // hovering well above the ground: certainly still flying
+            } else if (!st_.landingAsk && st_.uptimeS >= askQuietUntil_) {
+                st_.landingAsk = true;
+                askSince_ = st_.uptimeS;
+            }
+            if (st_.landingAsk) {
+                uint32_t el = st_.uptimeS - askSince_;
+                st_.landingEndInS = (uint16_t)(el >= kLandAutoEndS ? 0 : kLandAutoEndS - el);
+                if (el >= kLandAutoEndS) landNow();
+            }
         }
     } else {
         slowCount_ = 0;
+        st_.landingAsk = false;
+        st_.landingStillS = st_.landingEndInS = 0;
     }
 }
 
@@ -405,9 +419,44 @@ void FlightComputer::refuel(float l) {
     set_.fuelStartL = l;
     st_.fuelUsedL = 0;
 }
+void FlightComputer::landNow() {
+    // the flight ended when the movement stopped (not when the question was answered)
+    if (slowCount_ > 0 && stillSince_ >= takeoffUptime_) st_.flightTimeS = stillSince_ - takeoffUptime_;
+    st_.phase = Phase::Ground;
+    landingEvent = true;
+    lastFlight.valid = true;
+    lastFlight.durationS = st_.flightTimeS;
+    lastFlight.maxAlt = st_.maxAlt;
+    lastFlight.maxClimb = st_.maxClimb;
+    lastFlight.maxSink = st_.maxSink;
+    lastFlight.distKm = st_.distFlownM / 1000.f;
+    lastFlight.maxDistHomeKm = st_.maxDistHomeM / 1000.f;
+    lastFlight.fuelUsedL = st_.fuelUsedL;
+    st_.circling = false;
+    st_.landingAsk = false;
+    st_.landingStillS = st_.landingEndInS = 0;
+    fastCount_ = slowCount_ = 0;
+}
+
+void FlightComputer::answerStillFlying() {
+    st_.landingAsk = false;
+    st_.landingStillS = st_.landingEndInS = 0;
+    slowCount_ = 0;  // start counting again
+    askQuietUntil_ = st_.uptimeS + kLandQuietS;
+}
+
+void FlightComputer::answerLanded() {
+    if (st_.phase != Phase::Flying) return;
+    pendingLand_ = true;      // landNow() at the next update (its landingEvent is seen by the main loop)
+    st_.landingAsk = false;   // the card disappears right away
+}
+
 void FlightComputer::resetFlight() {
     st_.phase = Phase::Ground;
     fastCount_ = slowCount_ = 0;
+    st_.landingAsk = false;
+    st_.landingStillS = st_.landingEndInS = 0;
+    pendingLand_ = false;
     manualHome_ = false;
     track_.clear();
     recent_.clear();

@@ -255,7 +255,10 @@ static const std::vector<HelpTopic> kTopicsPl = {
      "– Start wykrywany jest sam: prędkość powyżej 15 km/h przez 10 s. Miejsce postoju przed startem staje się "
      "punktem START. Rusza zapis lotu, czas lotu i licznik paliwa.\n"
      "– START możesz ustawić ręcznie: Menu > Lot > Ustaw START tutaj.\n"
-     "– Lądowanie: prędkość poniżej 5 km/h przez 60 s. Zapis jest zamykany i pokazuje się podsumowanie lotu.\n"
+     "– Lądowanie: po 60 s bez ruchu (poniżej 5 km/h, vario do 0,5 m/s) pojawia się pytanie LĄDOWANIE?. KLAWISZ – nadal lecę "
+     "(nie pytam przez 5 min), BOOT – wylądowałem. Bez odpowiedzi lot trwa; jeśli bezruch trwa dalej, lot kończy się "
+     "sam po 4 min. Wyżej niż 50 m nad terenem pytanie się nie pokazuje (wiszenie pod wiatr). Po lądowaniu zapis jest "
+     "zamykany i pokazuje się podsumowanie; czas lotu liczony jest do chwili zatrzymania.\n"
      "– Wysokościomierz kalibruje się sam na ziemi po złapaniu co najmniej 6 satelitów (Menu > Wysokościomierz).\n"
      "– Wyłączenie (oba przyciski 3 s albo menu) również zamyka i zapisuje lot."},
 };
@@ -509,7 +512,10 @@ static const std::vector<HelpTopic> kTopicsEn = {
      "– Takeoff is detected automatically: ground speed above 15 km/h for 10 s. The position before takeoff becomes "
      "HOME. Flight logging, flight time and the fuel counter start.\n"
      "– HOME can be set manually: Menu > Flight > Set HOME here.\n"
-     "– Landing: ground speed below 5 km/h for 60 s. The log is closed and a flight summary is shown.\n"
+     "– Landing: after 60 s without movement (below 5 km/h, vario under 0.5 m/s) the LANDED? question appears. KEY – still "
+     "flying (no question for 5 min), BOOT – landed. Without an answer the flight goes on; if you still do not move, "
+     "it ends by itself after 4 min. Higher than 50 m above the terrain there is no question (hovering into the wind). "
+     "After landing the log is closed and a summary is shown; the flight time ends when you stopped.\n"
      "– The altimeter calibrates itself on the ground once at least 6 satellites are received (Menu > Altimeter).\n"
      "– Power off (both buttons 3 s or menu) also closes and saves the flight."},
 };

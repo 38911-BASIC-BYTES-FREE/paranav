@@ -48,7 +48,7 @@ Zmiany w kolejnych wersjach: [Historia wersji](#historia-wersji).
 | Wyjście ze strefy | alarm W STREFIE z przyciskami **WYPROWADŹ ZE STREFY / IGNORUJ**; ekran WYJŚCIE z najszybszą drogą na zewnątrz (poziom / w górę / w dół) |
 | Kontrola trasy | po wybraniu trasy (w urządzeniu lub z telefonu) lista stref, które przecina; ostrzeżenie także w aplikacji przed wysłaniem |
 | Nawigacja | Go Home, punkt z listy, najbliższe lądowisko, wiele tras (.cup) z listą „Wybierz trasę”, trasa narysowana na MAPIE i TOPO, auto-przełączanie punktów, ETE/ETA, wymagana L/D |
-| Zapis lotu | IGC + GPX w `/logs`, automatyczny start/stop (wykrywanie startu i lądowania), podsumowanie lotu |
+| Zapis lotu | IGC + GPX w `/logs`, automatyczny start/stop (wykrywanie startu, pytanie LĄDOWANIE?), podsumowanie lotu |
 | Mapa TOPO | czarno-biała mapa topograficzna z OpenStreetMap (woda, las, zabudowa, linie energetyczne, wiatraki, maszty, lotniska, drogi), północ u góry, z10–z14 |
 | FANET | radio LoRa 868 MHz na płytce: nadawanie pozycji (jako paralotnia), inni piloci na MAPIE, TOPO i ekranie RUCH, ostrzeżenia o zbliżeniu, widoczność w OGN |
 | Język | polski / angielski – Menu → Ekran i mapa → Język / Language (zapisywane w `config.ini`: `lang=pl` / `lang=en`) |
@@ -147,6 +147,15 @@ Po pojawieniu się zasilania USB ParaNav pyta, co robić (jak kamery sportowe): 
 | Pytanie po podłączeniu USB | Tryb ładowania |
 |:---:|:---:|
 | <img src="docs/screens/pl/V_usb_pytanie.png" width="100%" alt="Pytanie po podłączeniu USB"> | <img src="docs/screens/pl/W_ladowanie.png" width="100%" alt="Tryb ładowania"> |
+
+### Pytanie o lądowanie
+Lot nie kończy się już sam po minucie bezruchu – przy locie pod silny wiatr można długo „wisieć” w miejscu. Po **60 s bez ruchu** (poniżej 5 km/h i vario w granicach ±0,5 m/s) pokazuje się pytanie **LĄDOWANIE?**:
+* **NADAL LECĘ** (KLAWISZ krótko lub lewy przycisk) – pytanie znika i nie wraca przez 5 min,
+* **WYLĄDOWAŁEM** (BOOT krótko lub prawy przycisk) – zapis jest zamykany, pokazuje się podsumowanie lotu.
+
+Bez odpowiedzi lot trwa dalej. Jeśli bezruch trwa nadal, lot kończy się sam **4 min** po pojawieniu się pytania (licznik w dolnej linii); ruszenie się (powyżej 8 km/h albo vario ponad ±1 m/s) zamyka pytanie. Gdy jesteś **wyżej niż 50 m nad terenem** (wymaga plików terenu), pytanie się nie pokazuje. Czas lotu w podsumowaniu kończy się w chwili zatrzymania, a nie odpowiedzi.
+
+<p align="center"><img src="docs/screens/pl/U_pytanie_ladowanie.png" width="60%" alt="Pytanie LĄDOWANIE?"><br><sub>Pytanie LĄDOWANIE? na ekranie LOT</sub></p>
 
 ### Wyjście ze strefy i kontrola trasy
 Gdy wlecisz w aktywną strefę (te same strefy, które dają alarm W STREFIE – klasy z listy ignorowanych i strefy nieaktywne wg AUP się nie liczą), alarm ma dwa przyciski:
@@ -376,6 +385,7 @@ Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Nu
 
 ### Następna wersja (w przygotowaniu)
 * Mapa TOPO: uproszczony widok z daleka (z10–z11) – bez lasów, tylko miasta, główne drogi, linie od 220 kV, farmy wiatrowe jako jeden znak z liczbą wiatraków. Wymaga ponownego wygenerowania map.
+* **Pytanie LĄDOWANIE?** zamiast automatycznego końca lotu po 60 s bezruchu (fałszywe lądowania przy wiszeniu pod wiatr): NADAL LECĘ / WYLĄDOWAŁEM, bez odpowiedzi koniec po 4 min, brak pytania wyżej niż 50 m nad terenem, czas lotu liczony do chwili zatrzymania.
 
 ### 0.5.8 – 21.11
 * **Naprawione narastające spowolnienie** – po kilkunastu minutach pracy interfejs zwalniał (wolne przejścia między ekranami, opóźniona reakcja na przyciski i dotyk). Przyczyną była coraz bardziej poszatkowana pamięć PSRAM; krótkotrwałe obiekty trafiają teraz do pamięci wewnętrznej, a bufory rysowania są używane ponownie.

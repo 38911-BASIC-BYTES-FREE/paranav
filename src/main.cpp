@@ -1064,6 +1064,21 @@ static bool handleEventImpl(const board::Event& e) {
         if (e.type == Ev::KeyLong || e.type == Ev::BootLong) usbExit();
         return true;
     }
+    if (fc.state().landingAsk) {
+        // "LANDED?" over everything: KEY / left button = still flying (default), BOOT / right button = landed
+        int b = e.type == Ev::Tap ? ui::landingAskButtonAt(e.x, e.y) : -1;
+        if (e.type == Ev::KeyShort || b == 0) {
+            fc.answerStillFlying();
+            crumb(TR("lądowanie?: nadal lecę", "landed?: still flying"));
+            return true;
+        }
+        if (e.type == Ev::BootShort || b == 1) {
+            fc.answerLanded();
+            crumb(TR("lądowanie?: wylądowałem", "landed?: landed"));  // summary shows after the next GPS second
+            return true;
+        }
+        if (e.type == Ev::Tap && e.y < 330) return true;  // the card itself: no accidental screen change
+    }
     if (showRouteCheck) {
         if (e.type != Ev::None) showRouteCheck = false;
         return true;
@@ -1228,6 +1243,7 @@ static void render(bool full) {
         else if (settings.trafficAlarm && screen != ui::SCR_TRAFFIC && fc.state().phase == Phase::Flying)
             ui::drawTrafficHint(c, u);  // caution level: small box, top right
     }
+    if (fc.state().landingAsk) ui::drawLandingAsk(c, u);  // over any screen, menu included
     if (!menu.isOpen()) ui::drawTransferBanner(c, u);
     if (powerArming) ui::drawPowerHint(c);
     board::displayUpdate(full);

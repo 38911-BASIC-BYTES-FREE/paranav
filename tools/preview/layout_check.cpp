@@ -213,6 +213,30 @@ static void render(World& w, const std::string& name) {
     ui::drawSummary(c, u);
     analyse(name + "/PODSUMOWANIE", boxes, false);
     savePgm("/tmp/layout/" + name + "_summary.pgm");
+    {   // "LANDED?" question over the flight screen (extreme values in the extreme scenario)
+        bool ext = name == "skrajne";
+        NavState ln = *u.nav;
+        ln.landingAsk = true;
+        ln.landingStillS = ext ? 65535 : 65;
+        ln.landingEndInS = ext ? 65535 : 235;
+        if (!ext) { ln.gsKmh = 2; ln.vario1s = 0.1f; ln.aglTerrain = 18; }
+        const NavState* keep = u.nav;
+        u.nav = &ln;
+        ui::drawScreen(c, ui::SCR_FLIGHT, u);
+        boxes.clear();
+        ui::drawLandingAsk(c, u);
+        analyse(name + "/LADOWANIE", boxes, false);
+        savePgm("/tmp/layout/" + name + "_landing.pgm");
+        if (!std::isnan(ln.aglTerrain)) {  // also the "from takeoff" variant (no terrain data)
+            ln.aglTerrain = NAN;
+            boxes.clear();
+            ui::drawLandingAsk(c, u);
+            analyse(name + "/LADOWANIE-BEZ-TERENU", boxes, false);
+        }
+        u.nav = keep;
+        if (ui::landingAskButtonAt(100, 210) != 0 || ui::landingAskButtonAt(800, 210) != 1 || ui::landingAskButtonAt(100, 100) != -1)
+            std::printf("  [LADOWANIE] wrong button mapping\n"), problems++;
+    }
     if (w.asp.zones().size() >= 2) {   // airspace exit screen: horizontal / up / down / outside, and the route check
         int nz = (int)w.asp.zones().size();
         EscapeResult e;

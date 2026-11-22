@@ -64,6 +64,10 @@ struct NavState {
     float varioAvg = 0;     // 30 s mean
     float groundMsl = NAN;  // terrain under aircraft
     float aglTerrain = NAN; // height above terrain
+    // "Have you landed?" question: no movement low above the ground (see FlightComputer)
+    bool landingAsk = false;
+    uint16_t landingStillS = 0;   // seconds without movement
+    uint16_t landingEndInS = 0;   // the flight ends by itself in ... s if the pilot stays still and does not answer
     float aglTakeoff = NAN; // height above takeoff
 
     // flight
@@ -138,6 +142,17 @@ public:
     void setAltitude(float altMsl);       // manual QNH via known altitude
     void resetFlight();
 
+    // Landing detection. 60 s without movement (ground speed < 5 km/h, |vario| < 0.5 m/s):
+    //  - at least 50 m above the terrain (SRTM data) -> still flying (hovering into a strong wind), no question,
+    //  - otherwise NavState::landingAsk: "LANDED?" with STILL FLYING (default) / LANDED,
+    //  - movement (> 8 km/h or |vario| > 1 m/s) closes the question by itself,
+    //  - no answer and still no movement for another 4 min -> the flight ends by itself.
+    // The landing time (flight duration) is the moment the movement stopped.
+    static constexpr uint32_t kLandAskS = 60, kLandAutoEndS = 240, kLandQuietS = 300;
+    static constexpr float kLandHighAglM = 50.f;
+    void answerStillFlying();  // hide the question, do not ask again for kLandQuietS
+    void answerLanded();       // end the flight (at the next update)
+
     // Reach: still-air glide geometry corrected for wind. Returns arrival height above target
     // ground (target elev) when gliding from current position, NAN if wind makes it impossible.
     float glideArrival(double lat, double lon, float tgtElev) const;
@@ -177,6 +192,9 @@ private:
     MovingAvg<10> turnRate_;
     float lastTrack_ = NAN;
     int fastCount_ = 0, slowCount_ = 0;
+    uint32_t stillSince_ = 0, askSince_ = 0, askQuietUntil_ = 0;
+    bool pendingLand_ = false;
+    void landNow();
     double candLat_ = 0, candLon_ = 0;
     float candAlt_ = NAN;
     uint32_t candUtc_ = 0;

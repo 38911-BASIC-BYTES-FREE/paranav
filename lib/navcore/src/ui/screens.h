@@ -97,6 +97,9 @@ enum AlertButton { AB_NONE = -1, AB_ESCAPE = 0, AB_IGNORE = 1 };
 AlertButton alertButtonAt(int alertId, int x, int y);
 // Airspace exit screen ("lead me out"): fastest way out, ignoring the navigation target
 void drawEscape(Canvas& c, const UiContext& u);
+// "Landed?" question over the current screen (NavState::landingAsk): 0 = still flying, 1 = landed, -1 = elsewhere
+void drawLandingAsk(Canvas& c, const UiContext& u);
+int landingAskButtonAt(int x, int y);
 // Route check result after a route is activated: zones crossed by the route
 void drawRouteCheck(Canvas& c, const UiContext& u, const std::string& routeName,
                     const std::vector<nav::RouteConflict>& list);

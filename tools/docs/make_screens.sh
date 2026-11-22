@@ -51,7 +51,8 @@ lang = sys.argv[1]
 names = {"normalny_ask1": ("V_usb_pytanie", "V_usb_question"), "normalny_charging": ("W_ladowanie", "W_charging"),
          "normalny_esc_h": ("X_wyjscie_poziom", "X_exit_level"), "normalny_esc_up": ("X_wyjscie_gora", "X_exit_up"),
          "normalny_routecheck": ("Y_kontrola_trasy", "Y_route_check"),
-         "skrajne_alert_asp": ("Z_alarm_w_strefie", "Z_alert_inside")}
+         "skrajne_alert_asp": ("Z_alarm_w_strefie", "Z_alert_inside"),
+         "normalny_landing": ("U_pytanie_ladowanie", "U_landing_question")}
 for src, (pl, en) in names.items():
     Image.open(f"/tmp/layout/{src}.pgm").convert("L").save(f"docs/screens/{lang}/{pl if lang == 'pl' else en}.png")
 PY

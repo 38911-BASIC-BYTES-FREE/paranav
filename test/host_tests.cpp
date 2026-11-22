@@ -383,15 +383,89 @@ static void testFlight() {
     // glide arrival with no wind: alt - dist/LD - elev
     float arr = fc.glideArrival(n.homeLat, n.homeLon, n.homeElev);
     NEAR(arr, n.altMsl - n.homeDistM / s.glideRatio - n.homeElev, 0.5);
-    // landing
+    // landing: no terrain data -> after 60 s still the question, after another 4 min the flight ends by itself
+    uint32_t stopT = t;
     g.speedKmh = 0;
     for (int i = 0; i < 61; i++) fc.update(g, b, t++);
-    CHECK(fc.state().phase == Phase::Ground && fc.lastFlight.valid);
+    CHECK(fc.state().phase == Phase::Flying && fc.state().landingAsk);
+    CHECK(fc.state().landingEndInS > 230 && fc.state().landingEndInS <= FlightComputer::kLandAutoEndS);
+    for (int i = 0; i < (int)FlightComputer::kLandAutoEndS + 1 && fc.state().phase == Phase::Flying; i++) fc.update(g, b, t++);
+    CHECK(fc.state().phase == Phase::Ground && fc.lastFlight.valid && !fc.state().landingAsk);
     NEAR(fc.lastFlight.distKm, 6.1, 0.1);
+    // flight time ends when the movement stopped, not when the flight was closed
+    NEAR((double)fc.lastFlight.durationS, (double)(stopT - 105), 1.5);  // takeoff = first fast sample (t = 105)
     // manual QNH via known altitude
     fc.setAltitude(250);
     fc.update(g, b, t++);
     NEAR(fc.state().altMsl, 250, 0.5);
+}
+
+// "LANDED?" question: answers, movement, hovering high above the terrain
+static void testLandingQuestion() {
+    Settings s;
+    s.autoQnh = false;
+    BaroSnapshot b;
+    b.ok = true;
+    b.pressHpa = 1000;
+    b.altStd = baroAltitude(1000, 1013.25f);  // ~111 m
+    Terrain ter;
+    ter.setDir("/tmp");  // N10E010.hgt from testTerrain: elevation 0 at the north edge, 600 m in the middle
+    auto fly = [&](FlightComputer& fc, GpsFix& g, uint32_t& t) {
+        g.valid = true; g.sats = 10; g.hdop = 0.9f; g.year = 2026; g.month = 11; g.day = 22;
+        g.courseDeg = 90; g.courseValid = true;
+        g.speedKmh = 0;
+        for (int i = 0; i < 3; i++) fc.update(g, b, t++);
+        g.speedKmh = 36;
+        for (int i = 0; i < 15; i++) {
+            LatLon p = destination({g.lat, g.lon}, 90, 10);
+            g.lat = p.lat; g.lon = p.lon;
+            fc.update(g, b, t++);
+        }
+        CHECK(fc.state().phase == Phase::Flying);
+        g.speedKmh = 0;
+    };
+    {   // low above the ground (terrain 600 m, aircraft ~111 m): question; STILL FLYING -> quiet for 5 min
+        FlightComputer fc(s);
+        fc.setTerrain(&ter);
+        GpsFix g; g.lat = 10.5; g.lon = 10.5;
+        uint32_t t = 1000;
+        fly(fc, g, t);
+        for (int i = 0; i < 60; i++) fc.update(g, b, t++);
+        CHECK(fc.state().landingAsk && fc.state().landingStillS >= 59);
+        fc.answerStillFlying();
+        CHECK(!fc.state().landingAsk);
+        for (int i = 0; i < 290; i++) fc.update(g, b, t++);
+        CHECK(fc.state().phase == Phase::Flying && !fc.state().landingAsk);  // still quiet
+        for (int i = 0; i < 15; i++) fc.update(g, b, t++);
+        CHECK(fc.state().landingAsk);                                          // asks again after 5 min
+        // movement closes the question; 6 km/h is still "not moving" while asking (hysteresis)
+        g.speedKmh = 6;
+        fc.update(g, b, t++);
+        CHECK(fc.state().landingAsk);
+        g.speedKmh = 12;
+        fc.update(g, b, t++);
+        CHECK(!fc.state().landingAsk && fc.state().phase == Phase::Flying);
+        // LANDED: ends at the next update, landing event once
+        g.speedKmh = 0;
+        for (int i = 0; i < 400 && !fc.state().landingAsk; i++) fc.update(g, b, t++);
+        CHECK(fc.state().landingAsk);
+        fc.answerLanded();
+        CHECK(!fc.state().landingAsk && fc.state().phase == Phase::Flying);
+        fc.update(g, b, t++);
+        CHECK(fc.state().phase == Phase::Ground && fc.landingEvent && fc.lastFlight.valid);
+        fc.update(g, b, t++);
+        CHECK(!fc.landingEvent);
+    }
+    {   // hovering well above the ground (terrain 0 m, aircraft ~111 m): no question, the flight goes on
+        FlightComputer fc(s);
+        fc.setTerrain(&ter);
+        GpsFix g; g.lat = 10.9999; g.lon = 10.5;
+        uint32_t t = 5000;
+        fly(fc, g, t);
+        CHECK(fc.state().aglTerrain > 50);
+        for (int i = 0; i < 900; i++) fc.update(g, b, t++);
+        CHECK(fc.state().phase == Phase::Flying && !fc.state().landingAsk);
+    }
 }
 
 static void testAlerts() {
@@ -844,6 +918,7 @@ int main() {
     testSettings();
     testTerrain();
     testFlight();
+    testLandingQuestion();
     testAlerts();
     testEscape();
     std::printf("%d checks, %d failures\n", checks, failures);

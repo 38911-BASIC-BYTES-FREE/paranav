@@ -48,7 +48,7 @@ Changes between versions: [Version history](#version-history).
 | Airspace exit | INSIDE alert with **LEAD ME OUT / IGNORE** buttons; EXIT screen with the fastest way out (level / up / down) |
 | Route check | after a route is chosen (on the device or from the phone): list of zones it crosses; the app warns before sending too |
 | Navigation | Go Home, waypoint from a list, nearest landing field, several routes (.cup) with a "Choose route" list, route drawn on MAP and TOPO, automatic point switching, ETE/ETA, required L/D |
-| Flight log | IGC + GPX in `/logs`, automatic start/stop (takeoff and landing detection), flight summary |
+| Flight log | IGC + GPX in `/logs`, automatic start/stop (takeoff detection, LANDED? question), flight summary |
 | TOPO map | black and white topographic map from OpenStreetMap (water, forest, built-up areas, power lines, wind turbines, masts, aerodromes, roads), north up, z10–z14 |
 | FANET | on-board 868 MHz LoRa radio: position broadcast (as a paraglider), other pilots on MAP, TOPO and the TRAFFIC screen, proximity warnings, visibility in OGN |
 | Language | English / Polish – Menu → Display and map → Language / Język (stored in `config.ini`: `lang=en` / `lang=pl`) |
@@ -147,6 +147,15 @@ When USB power appears, ParaNav asks what to do (like action cameras): **NAVIGAT
 | Question after plugging in USB | Charging mode |
 |:---:|:---:|
 | <img src="docs/screens/en/V_usb_question.png" width="100%" alt="Question after plugging in USB"> | <img src="docs/screens/en/W_charging.png" width="100%" alt="Charging mode"> |
+
+### Landing question
+The flight no longer ends by itself after a minute without movement – flying into a strong wind you can "hang" in one place for a long time. After **60 s without movement** (below 5 km/h and vario within ±0.5 m/s) the **LANDED?** question appears:
+* **STILL FLYING** (KEY short or the left button) – the question disappears and does not come back for 5 min,
+* **LANDED** (BOOT short or the right button) – the log is closed and the flight summary is shown.
+
+Without an answer the flight goes on. If you still do not move, the flight ends by itself **4 min** after the question appeared (countdown in the bottom line); moving again (above 8 km/h or vario beyond ±1 m/s) closes the question. When you are **higher than 50 m above the terrain** (needs terrain files) there is no question. The flight time in the summary ends when you stopped, not when you answered.
+
+<p align="center"><img src="docs/screens/en/U_landing_question.png" width="60%" alt="LANDED? question"><br><sub>LANDED? question on the FLIGHT screen</sub></p>
 
 ### Airspace exit and route check
 When you enter active airspace (the zones that raise the INSIDE alert – ignored classes and zones inactive according to the AUP file do not count), the alert has two buttons:
@@ -376,6 +385,7 @@ Newest first. Dates are the days the code packages were made (2026). The firmwar
 
 ### Next version (in progress)
 * TOPO map: simplified far view (z10–z11) – no forest, towns only, main roads, power lines from 220 kV, wind farms as one symbol with the number of turbines. Requires regenerating the maps.
+* **LANDED? question** instead of the automatic flight end after 60 s without movement (false landings when hovering into the wind): STILL FLYING / LANDED, without an answer the flight ends after 4 min, no question higher than 50 m above the terrain, flight time counted until you stopped.
 
 ### 0.5.8 – 21 Nov
 * **Fixed the UI getting slower over time** – after 10–20 minutes screen changes and reactions to buttons and touch became slow. The cause was a more and more fragmented PSRAM heap; short-lived objects now use internal RAM and drawing buffers are reused.

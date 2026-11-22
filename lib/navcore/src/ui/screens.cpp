@@ -1709,6 +1709,44 @@ void drawAlertBanner(Canvas& c, const UiContext& u, int id) {
     c.text(W / 2 + 10 + (W / 2 - 32) / 2, kAbY + 72, TR("BOOT  ·  przypomni za 2 min", "BOOT  ·  reminds in 2 min"), font_s, WHITE, CENTER);
 }
 
+// ------------------------------------------------------------------ "LANDED?" question
+// Same layout as the "inside airspace" alert: black card at the top, two buttons, the flight screen below.
+static constexpr int kLaY = 176, kLaH = 84;
+
+int landingAskButtonAt(int x, int y) {
+    if (y < kLaY - 6 || y > kLaY + kLaH + 10) return -1;
+    return x < W / 2 ? 0 : 1;
+}
+
+void drawLandingAsk(Canvas& c, const UiContext& u) {
+    if (!u.nav) return;
+    const NavState& n = *u.nav;
+    const int h = 276;
+    c.fillRect(0, 40, W, h + 8, WHITE);
+    c.fillRoundRect(4, 44, W - 8, h, kCardR + 6, BLACK);
+    c.roundRect(10, 50, W - 20, h - 12, kCardR + 2, WHITE, 2);
+    c.text(30, 100, TR("LĄDOWANIE?", "LANDED?"), font_l, WHITE);
+    // what the device sees: time without movement, ground speed, vario, height above the ground
+    char b[160], v[24], a[48] = "";
+    std::snprintf(v, sizeof v, "%+.1f", (double)n.vario1s);
+    if (!std::isnan(n.aglTerrain)) std::snprintf(a, sizeof a, TR("  ·  %d m nad terenem", "  ·  %d m AGL"), (int)std::lround(n.aglTerrain));
+    else if (!std::isnan(n.aglTakeoff)) std::snprintf(a, sizeof a, TR("  ·  %+d m od startu", "  ·  %+d m from takeoff"), (int)std::lround(n.aglTakeoff));
+    std::snprintf(b, sizeof b, TR("brak ruchu od %s  ·  %d km/h  ·  vario %s%s", "no movement for %s  ·  %d km/h  ·  vario %s%s"),
+                  fmtDur((float)n.landingStillS, false).c_str(), (int)std::lround(n.gsKmh), v, a);
+    c.text(30, 140, trunc(b, font_sb, 900), font_sb, WHITE);
+    // [ STILL FLYING ] (default, KEY)   [ LANDED ] (BOOT)
+    c.fillRoundRect(22, kLaY, W / 2 - 32, kLaH, 20, WHITE);
+    c.text(22 + (W / 2 - 32) / 2, kLaY + 42, TR("NADAL LECĘ", "STILL FLYING"), font_m, BLACK, CENTER);
+    c.text(22 + (W / 2 - 32) / 2, kLaY + 72, TR("KLAWISZ  ·  nie pytaj przez 5 min", "KEY  ·  don't ask for 5 min"), font_s, BLACK, CENTER);
+    c.roundRect(W / 2 + 10, kLaY, W / 2 - 32, kLaH, 20, WHITE, 3);
+    c.text(W / 2 + 10 + (W / 2 - 32) / 2, kLaY + 42, TR("WYLĄDOWAŁEM", "LANDED"), font_m, WHITE, CENTER);
+    c.text(W / 2 + 10 + (W / 2 - 32) / 2, kLaY + 72, TR("BOOT  ·  zakończ lot", "BOOT  ·  end the flight"), font_s, WHITE, CENTER);
+    std::snprintf(b, sizeof b, TR("Bez odpowiedzi lot trwa dalej  ·  dalszy bezruch: koniec za %s",
+                                  "No answer: the flight goes on  ·  still not moving: ends in %s"),
+                  fmtDur((float)n.landingEndInS, false).c_str());
+    c.text(W / 2, kLaY + kLaH + 30, b, font_s, WHITE, CENTER);
+}
+
 // ------------------------------------------------------------------ AIRSPACE EXIT ("lead me out")
 static std::string fmtMinSec(float s) { return fmtDur(std::max(0.f, s), false); }
 
