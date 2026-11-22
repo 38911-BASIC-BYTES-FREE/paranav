@@ -383,7 +383,7 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
 
-### Następna wersja (w przygotowaniu)
+### 0.5.9 – 22.11
 * Mapa TOPO: uproszczony widok z daleka (z10–z11) – bez lasów, tylko miasta, główne drogi, linie od 220 kV, farmy wiatrowe jako jeden znak z liczbą wiatraków. Wymaga ponownego wygenerowania map.
 * **Pytanie LĄDOWANIE?** zamiast automatycznego końca lotu po 60 s bezruchu (fałszywe lądowania przy wiszeniu pod wiatr): NADAL LECĘ / WYLĄDOWAŁEM, bez odpowiedzi koniec po 4 min, brak pytania wyżej niż 50 m nad terenem, czas lotu liczony do chwili zatrzymania.
 

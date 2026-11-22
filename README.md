@@ -383,7 +383,7 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
 
-### Next version (in progress)
+### 0.5.9 – 22 Nov
 * TOPO map: simplified far view (z10–z11) – no forest, towns only, main roads, power lines from 220 kV, wind farms as one symbol with the number of turbines. Requires regenerating the maps.
 * **LANDED? question** instead of the automatic flight end after 60 s without movement (false landings when hovering into the wind): STILL FLYING / LANDED, without an answer the flight ends after 4 min, no question higher than 50 m above the terrain, flight time counted until you stopped.
 
