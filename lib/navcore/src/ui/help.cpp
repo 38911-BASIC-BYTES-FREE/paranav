@@ -182,8 +182,12 @@ static const std::vector<HelpTopic> kTopicsPl = {
      "10 s po opuszczeniu strefy ekran sam się zamyka. Zamknięcie ręczne: przytrzymaj KLAWISZ. Bez alarmu: Menu > "
      "Nawigacja > Wyprowadź ze strefy.\n"
      "Wznoszenie i opadanie do obliczeń: Menu > Alarmy (domyślnie 1,5 i 2 m/s).\n"
+     "Limit wysokości: Menu > Alarmy > Maks. wysokość FL (domyślnie FL95, 0 = bez limitu). Wyjście w górę jest "
+     "proponowane tylko wtedy, gdy kończy się co najmniej 30 m poniżej limitu – inaczej przy \"w górę\" widać "
+     "\"ponad FL95\". Limit jest liczony z aktualnego QNH.\n"
      "Kontrola trasy: po wybraniu trasy (w urządzeniu lub z telefonu) ParaNav sprawdza, czy przecina strefy z "
-     "podstawą poniżej wysokości lotu z Menu > Alarmy (domyślnie 1000 m nad terenem) i pokazuje listę. "
+     "podstawą poniżej wysokości lotu z Menu > Alarmy (domyślnie 1000 m nad terenem, nie wyżej niż limit FL) "
+     "i pokazuje listę. "
      "Ponownie: Menu > Nawigacja > Sprawdź trasę."},
 
     {"Barometr i BlueFly",
@@ -439,8 +443,12 @@ static const std::vector<HelpTopic> kTopicsEn = {
      "The screen closes 10 s after you are out. Close it by hand: hold KEY. Without the alert: Menu > Navigation "
      "> Lead me out of airspace.\n"
      "Climb and sink rates used: Menu > Alarms (default 1.5 and 2 m/s).\n"
+     "Altitude limit: Menu > Alarms > Max altitude FL (default FL95, 0 = no limit). Climbing out is offered only "
+     "when it ends at least 30 m below the limit – otherwise \"up\" shows \"above FL95\". The limit follows the "
+     "current QNH.\n"
      "Route check: when a route is chosen (on the device or from the phone), ParaNav checks whether it crosses "
-     "zones with a floor below the flying height set in Menu > Alarms (default 1000 m AGL) and lists them. "
+     "zones with a floor below the flying height set in Menu > Alarms (default 1000 m AGL, never above the FL "
+     "limit) and lists them. "
      "Again: Menu > Navigation > Check route."},
 
     {"Barometer and BlueFly",

@@ -164,7 +164,7 @@ When you enter active airspace (the zones that raise the INSIDE alert – ignore
 
 Three ways are compared and the fastest one is shown:
 * **level** – directions every 5°; for each, the distance to free airspace (through neighbouring zones, + 150 m margin); time = turn (12°/s) + flight at max(GS, cruise speed),
-* **up** – above the ceiling of every zone above you (including a zone stacked on top) + 30 m, at the climb rate from Menu → Alarms (default 1.5 m/s),
+* **up** – above the ceiling of every zone above you (including a zone stacked on top) + 30 m, at the climb rate from Menu → Alarms (default 1.5 m/s); only when the target altitude is at least 30 m below the **altitude limit** (Menu → Alarms → *Max altitude FL*, default **FL95** – the upper limit for paragliders in Poland, 0 = no limit; follows the current QNH). A zone ending at FL95 or higher gives no way out upwards – "up" shows "above FL95",
 * **down** – below the floor − 30 m at the sink rate from Menu → Alarms (default 2 m/s); not offered when the zone starts at the ground or it would take you lower than 60 m above the terrain.
 
 Screen: an arrow relative to your track (or a big CLIMB / DESCEND arrow with the target altitude), the zone name and the times of all three options. The plan is recomputed every second; the screen closes 10 s after you are out (by hand: hold KEY). Without the alert: Menu → Navigation → *Lead me out of airspace*.
@@ -173,7 +173,7 @@ Screen: an arrow relative to your track (or a big CLIMB / DESCEND arrow with the
 |:---:|:---:|:---:|
 | <img src="docs/screens/en/Z_alert_inside.png" width="100%" alt="INSIDE alert"> | <img src="docs/screens/en/X_exit_level.png" width="100%" alt="EXIT – horizontal"> | <img src="docs/screens/en/X_exit_up.png" width="100%" alt="EXIT – climb"> |
 
-**Route check:** after choosing a route in Menu → Navigation → Choose route, or activating it from the phone, ParaNav checks which zones the route crosses (a sample every 100 m), using the terrain below the route and today's activation schedule. A conflict = a zone not known to be inactive with its floor below the height in Menu → Alarms → *Route check: flying up to* (default 1000 m AGL). The list is shown on the screen; the app receives the number of conflicts and shows it. The app also checks the route itself before sending (against the zones loaded on its map, without terrain and AUP – more cautious). Again: Menu → Navigation → *Check route – airspace*.
+**Route check:** after choosing a route in Menu → Navigation → Choose route, or activating it from the phone, ParaNav checks which zones the route crosses (a sample every 100 m), using the terrain below the route and today's activation schedule. A conflict = a zone not known to be inactive with its floor below the height in Menu → Alarms → *Route check: flying up to* (default 1000 m AGL, but never above the FL limit). The list is shown on the screen; the app receives the number of conflicts and shows it. The app also checks the route itself before sending (against the zones loaded on its map, without terrain and AUP – more cautious). Again: Menu → Navigation → *Check route – airspace*.
 
 <p align="center"><img src="docs/screens/en/Y_route_check.png" width="60%" alt="Route check – zones crossed by the route"><br><sub>Route check – zones crossed by the route</sub></p>
 
@@ -382,6 +382,9 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 ## Version history
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
+
+### 0.5.10 – 23 Nov
+* **FL95 altitude limit** as a setting (Menu → Alarms → *Max altitude FL*, `maxFl` in `config.ini`, 0 = no limit): the airspace exit no longer offers climbing above the limit (e.g. over a zone ending at FL95), the route check never counts a flying height above the limit.
 
 ### 0.5.9 – 22 Nov
 * TOPO map: simplified far view (z10–z11) – no forest, towns only, main roads, power lines from 220 kV, wind farms as one symbol with the number of turbines. Requires regenerating the maps.

@@ -901,6 +901,39 @@ static void testEscape() {
     }
     rc = checkRoute(db, path, &set, 0, 0, 1013.25f, 500.f, [](double, double) { return 100.f; });
     CHECK(rc.size() == 2 && rc[0].conflict && !rc[1].conflict);
+
+    // altitude limit (FL95 by default): FL -> AMSL at the current QNH
+    CHECK(set.maxFl == 95);
+    NEAR(maxAltitudeMsl(95, 1013.25f), 2895.6, 0.5);
+    NEAR(maxAltitudeMsl(95, 1000.f), 2895.6 - 13.25 * 8.3, 0.5);
+    CHECK(std::isnan(maxAltitudeMsl(0, 1013.25f)));
+    // FL95 does not touch the climb above SQUARE (1030 m)
+    q.lat = 52.05; q.lon = 21.05; q.altMsl = 950; q.groundMsl = 100;
+    q.maxAltMsl = maxAltitudeMsl(95, 1013.25f);
+    r = planEscape(db, q, &set);
+    CHECK(r.up.valid && !r.up.overLimit && r.best.kind == EscapeOption::Up);
+    // a limit just at the zone top (2000 m): climbing above P would end above it -> not offered
+    q.lon = 21.12;
+    q.maxAltMsl = 2000;
+    r = planEscape(db, q, &set);
+    CHECK(!r.up.valid && r.up.overLimit && r.best.valid && r.best.kind != EscapeOption::Up);
+    q.maxAltMsl = 2031;  // margin: the target (2030) must stay 30 m below the limit
+    r = planEscape(db, q, &set);
+    CHECK(!r.up.valid && r.up.overLimit);
+    q.maxAltMsl = 2061;
+    r = planEscape(db, q, &set);
+    CHECK(r.up.valid && !r.up.overLimit);
+    // route check: flying "up to 1000 m AGL" but the limit is 900 m AMSL (800 m AGL): ABOVE (floor 900 m AGL) is no conflict
+    rc = checkRoute(db, path, &set, 0, 0, 1013.25f, 1000.f, [](double, double) { return 100.f; }, 900.f);
+    CHECK(rc.size() == 2 && rc[0].conflict && !rc[1].conflict);
+    // settings: the limit is stored in config.ini
+    {
+        Settings a;
+        a.maxFl = 65;
+        CHECK(a.save("/tmp/paranav_fl.ini"));
+        Settings b2;
+        CHECK(b2.load("/tmp/paranav_fl.ini") && b2.maxFl == 65);
+    }
 }
 
 int main() {

@@ -38,6 +38,7 @@ bool toBool(const std::string& v) { return v == "1" || v == "true" || v == "yes"
     X(escClimbMs, FLT)                      \
     X(escSinkMs, FLT)                       \
     X(routeCheckAglM, FLT)                  \
+    X(maxFl, INT)                           \
     X(battWarnPct, INT)                     \
     X(varioSound, BOOL)                     \
     X(tzOffsetMin, INT)                     \

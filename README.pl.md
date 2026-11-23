@@ -164,7 +164,7 @@ Gdy wlecisz w aktywną strefę (te same strefy, które dają alarm W STREFIE –
 
 Porównywane są trzy drogi, wybierana najszybsza:
 * **w poziomie** – kierunki co 5°; dla każdego odległość do wolnej przestrzeni (przez sąsiadujące strefy, + 150 m zapasu), czas = zakręt (12°/s) + lot z prędkością max(GS, przelotowa),
-* **w górę** – ponad pułap wszystkich stref nad Tobą (także strefy leżącej wyżej) + 30 m, ze wznoszeniem z Menu → Alarmy (domyślnie 1,5 m/s),
+* **w górę** – ponad pułap wszystkich stref nad Tobą (także strefy leżącej wyżej) + 30 m, ze wznoszeniem z Menu → Alarmy (domyślnie 1,5 m/s); tylko gdy wysokość docelowa jest co najmniej 30 m poniżej **limitu wysokości** (Menu → Alarmy → *Maks. wysokość FL*, domyślnie **FL95** – górna granica lotów paralotnią w Polsce, 0 = bez limitu; przeliczany z aktualnego QNH). Strefa kończąca się na FL95 albo wyżej nie daje wyjścia w górę – na ekranie przy „w górę” widać „ponad FL95”,
 * **w dół** – pod podstawę − 30 m, z opadaniem z Menu → Alarmy (domyślnie 2 m/s); niedostępne, gdy strefa zaczyna się od ziemi albo trzeba by zejść niżej niż 60 m nad teren.
 
 Ekran: strzałka względem Twojego kursu (albo duża strzałka WZNOŚ SIĘ / ZNIŻAJ SIĘ z wysokością docelową), nazwa strefy i czasy wszystkich trzech możliwości. Plan liczony jest co sekundę; 10 s po wyjściu ekran sam się zamyka (ręcznie: przytrzymaj KLAWISZ). Bez alarmu: Menu → Nawigacja → *Wyprowadź ze strefy*.
@@ -173,7 +173,7 @@ Ekran: strzałka względem Twojego kursu (albo duża strzałka WZNOŚ SIĘ / ZNI
 |:---:|:---:|:---:|
 | <img src="docs/screens/pl/Z_alarm_w_strefie.png" width="100%" alt="Alarm W STREFIE"> | <img src="docs/screens/pl/X_wyjscie_poziom.png" width="100%" alt="WYJŚCIE – w poziomie"> | <img src="docs/screens/pl/X_wyjscie_gora.png" width="100%" alt="WYJŚCIE – w górę"> |
 
-**Kontrola trasy:** po wybraniu trasy w Menu → Nawigacja → Wybierz trasę albo po aktywacji z telefonu ParaNav sprawdza, które strefy trasa przecina (próbka co 100 m), z teren pod trasą i dzisiejszym planem aktywności. Kolizja = strefa nie-nieaktywna z podstawą poniżej wysokości z Menu → Alarmy → *Kontrola trasy: lot do* (domyślnie 1000 m nad terenem). Lista pokazuje się na ekranie; aplikacja dostaje liczbę kolizji i ją wyświetla. Aplikacja sama sprawdza trasę już przed wysłaniem (na strefach wczytanych na mapę, bez terenu i planu AUP – ostrożniej). Ponownie: Menu → Nawigacja → *Sprawdź trasę – strefy*.
+**Kontrola trasy:** po wybraniu trasy w Menu → Nawigacja → Wybierz trasę albo po aktywacji z telefonu ParaNav sprawdza, które strefy trasa przecina (próbka co 100 m), z teren pod trasą i dzisiejszym planem aktywności. Kolizja = strefa nie-nieaktywna z podstawą poniżej wysokości z Menu → Alarmy → *Kontrola trasy: lot do* (domyślnie 1000 m nad terenem, ale nie wyżej niż limit FL). Lista pokazuje się na ekranie; aplikacja dostaje liczbę kolizji i ją wyświetla. Aplikacja sama sprawdza trasę już przed wysłaniem (na strefach wczytanych na mapę, bez terenu i planu AUP – ostrożniej). Ponownie: Menu → Nawigacja → *Sprawdź trasę – strefy*.
 
 <p align="center"><img src="docs/screens/pl/Y_kontrola_trasy.png" width="60%" alt="Kontrola trasy – strefy przecinane przez trasę"><br><sub>Kontrola trasy – strefy przecinane przez trasę</sub></p>
 
@@ -382,6 +382,9 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 ## Historia wersji
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
+
+### 0.5.10 – 23.11
+* **Limit wysokości FL95** jako ustawienie (Menu → Alarmy → *Maks. wysokość FL*, `maxFl` w `config.ini`, 0 = bez limitu): wyjście ze strefy nie proponuje już wznoszenia ponad limit (np. nad strefę kończącą się na FL95), kontrola trasy nie liczy wysokości lotu powyżej limitu.
 
 ### 0.5.9 – 22.11
 * Mapa TOPO: uproszczony widok z daleka (z10–z11) – bez lasów, tylko miasta, główne drogi, linie od 220 kV, farmy wiatrowe jako jeden znak z liczbą wiatraków. Wymaga ponownego wygenerowania map.

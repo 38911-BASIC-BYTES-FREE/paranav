@@ -362,6 +362,7 @@ static void updateEscape() {
     q.sinkMs = settings.escSinkMs;
     q.utcSec = n.utcSec;
     q.dateYmd = n.dateYmd;
+    q.maxAltMsl = nav::maxAltitudeMsl(settings.maxFl, settings.qnhHpa);
     escapeRes = planEscape(airspace, q, &settings);
 }
 
@@ -379,7 +380,8 @@ static int checkActiveRoute(bool show) {
     for (const auto& w : route.pts) path.push_back({w.lat, w.lon});
     const NavState& n = fc.state();
     routeCheck = nav::checkRoute(airspace, path, &settings, n.utcSec, n.dateYmd, settings.qnhHpa, settings.routeCheckAglM,
-                                 [](double la, double lo) { return terrain.elevation(la, lo); });
+                                 [](double la, double lo) { return terrain.elevation(la, lo); },
+                                 nav::maxAltitudeMsl(settings.maxFl, settings.qnhHpa));
     int c = 0;
     for (auto& r : routeCheck) c += r.conflict;
     crumb(std::string(TR("kontrola trasy: kolizje ", "route check: conflicts ")) + std::to_string(c));
@@ -672,6 +674,8 @@ __attribute__((noinline)) static ui::MenuItem menuAlarms() {
                             [](float v) { settings.escSinkMs = v; }, 0.5f, 5, 0.5f, 1, "m/s"));
     alarms.push_back(M::num(TR("Kontrola trasy: lot do", "Route check: flying up to"), [] { return settings.routeCheckAglM; },
                             [](float v) { settings.routeCheckAglM = v; }, 100, 3000, 100, 0, TR("m n.t.", "m AGL")));
+    alarms.push_back(M::num(TR("Maks. wysokość FL (0=bez)", "Max altitude FL (0=none)"), [] { return (float)settings.maxFl; },
+                            [](float v) { settings.maxFl = (int)v; }, 0, 195, 5, 0, ""));
     return M::sub(TR("Alarmy", "Alarms"), std::move(alarms));
 }
 

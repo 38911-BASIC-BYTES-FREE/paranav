@@ -1832,7 +1832,13 @@ void drawEscape(Canvas& c, const UiContext& u) {
     auto alt = [&](const nav::EscapeOption& x, const char* name, const std::string& what) {
         bool best = o.valid && x.valid && x.kind == o.kind;
         c.text(494, y, std::string(best ? "► " : "   ") + name, font_sb, BLACK);
-        c.text(W - 18, y, x.valid ? what + "  " + fmtMinSec(x.timeS) : TR("niemożliwe", "not possible"), font_sb, BLACK, RIGHT);
+        std::string no = TR("niemożliwe", "not possible");
+        if (x.overLimit && u.set && u.set->maxFl > 0) {
+            char lb[40];
+            std::snprintf(lb, sizeof lb, TR("ponad FL%d", "above FL%d"), u.set->maxFl);
+            no = lb;
+        }
+        c.text(W - 18, y, x.valid ? what + "  " + fmtMinSec(x.timeS) : no, font_sb, BLACK, RIGHT);
         y += 34;
     };
     alt(e->horiz, TR("w poziomie", "level"), fmtDistKm(e->horiz.distM) + " km");
@@ -1849,17 +1855,24 @@ void drawRouteCheck(Canvas& c, const UiContext& u, const std::string& routeName,
     drawStatusBar(c, SCR_NAV, u, TR("TRASA", "ROUTE"));
     int nConf = 0;
     for (auto& r : list) nConf += r.conflict;
-    char b[96];
+    char b[120];
+    std::string flTxt;
+    if (u.set->maxFl > 0) {
+        char t[24];
+        std::snprintf(t, sizeof t, TR(" i FL%d", " and FL%d"), u.set->maxFl);
+        flTxt = t;
+    }
     if (nConf) {
         c.fillRoundRect(4, 44, W - 8, 92, kCardR + 6, BLACK);
         std::snprintf(b, sizeof b, TR("TRASA PRZECINA STREFY: %d", "ROUTE CROSSES AIRSPACE: %d"), nConf);
         c.text(W / 2, 88, b, font_l, WHITE, CENTER);
-        std::snprintf(b, sizeof b, TR("poniżej %d m nad terenem – sprawdź przed lotem", "below %d m AGL – check before the flight"), (int)u.set->routeCheckAglM);
+        std::snprintf(b, sizeof b, TR("poniżej %d m nad terenem%s – sprawdź przed lotem", "below %d m AGL%s – check before the flight"), (int)u.set->routeCheckAglM,
+                      flTxt.c_str());
         c.text(W / 2, 122, b, font_sb, WHITE, CENTER);
     } else {
         card(c, 4, 44, W - 5, 135);
         c.text(W / 2, 88, TR("✓ Trasa nie przecina stref", "✓ Route clear of airspace"), font_l, BLACK, CENTER);
-        std::snprintf(b, sizeof b, TR("poniżej %d m nad terenem", "below %d m AGL"), (int)u.set->routeCheckAglM);
+        std::snprintf(b, sizeof b, TR("poniżej %d m nad terenem%s", "below %d m AGL%s"), (int)u.set->routeCheckAglM, flTxt.c_str());
         c.text(W / 2, 122, b, font_sb, BLACK, CENTER);
     }
     card(c, 4, 142, W - 5, H - 5);

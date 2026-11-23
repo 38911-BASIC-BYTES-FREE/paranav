@@ -10,8 +10,8 @@ android {
         applicationId 'pl.paranav.uploader'
         minSdk 26
         targetSdk 34
-        versionCode 8
-        versionName '0.5.9'
+        versionCode 9
+        versionName '0.5.10'
     }
 
     buildTypes {

@@ -245,13 +245,14 @@ static void render(World& w, const std::string& name) {
         e.horiz = {EscapeOption::Horizontal, true, 247, 12345, 0, 0, 5999};
         e.up = {EscapeOption::Up, true, 0, 0, 9999, 8888, 5999};
         e.down = {EscapeOption::Down, false, 0, 0, 0, 0, 0};
-        const char* nm[4] = {"h", "up", "down", "out"};
-        for (int k = 0; k < 4; k++) {
+        const char* nm[5] = {"h", "up", "down", "out", "fl"};
+        for (int k = 0; k < 5; k++) {
             EscapeResult x = e;
             if (k == 0) x.best = x.horiz;
             if (k == 1) x.best = x.up;
             if (k == 2) { x.down = {EscapeOption::Down, true, 0, 0, 120, -9999, 5999}; x.best = x.down; }
             if (k == 3) x.inside = false;
+            if (k == 4) { x.up.valid = false; x.up.overLimit = true; x.best = x.horiz; }  // climbing would end above FL95
             u.escape = &x;
             boxes.clear();
             ui::drawEscape(c, u);

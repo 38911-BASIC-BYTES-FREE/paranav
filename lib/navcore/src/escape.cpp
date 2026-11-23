@@ -18,6 +18,14 @@ bool usable(const AirspaceDb& db, const Airspace& a, const EscapeQuery& q, const
 }
 }  // namespace
 
+float maxAltitudeMsl(int fl, float qnhHpa) {
+    if (fl <= 0) return NAN;
+    AltLimit l;
+    l.ref = AltLimit::FL;
+    l.value = (float)fl;
+    return l.toMsl(NAN, qnhHpa);
+}
+
 EscapeResult planEscape(const AirspaceDb& db, const EscapeQuery& q, const Settings* filter) {
     EscapeResult r;
     const auto& zones = db.zones();
@@ -135,6 +143,13 @@ EscapeResult planEscape(const AirspaceDb& db, const EscapeQuery& q, const Settin
             if (top > 15000) { ok = false; break; }  // unlimited ceiling
             alt = top + kVertMarginM;
         }
+        // never above the altitude limit (e.g. FL95): the target plus the margin must stay below it
+        if (ok && alt > q.altMsl && !std::isnan(q.maxAltMsl) && alt > q.maxAltMsl - kVertMarginM) {
+            ok = false;
+            r.up.overLimit = true;
+            r.up.targetAlt = alt;
+            r.up.dAltM = alt - q.altMsl;
+        }
         if (ok && alt > q.altMsl) {
             r.up.valid = true;
             r.up.kind = EscapeOption::Up;
@@ -172,7 +187,7 @@ EscapeResult planEscape(const AirspaceDb& db, const EscapeQuery& q, const Settin
 
 std::vector<RouteConflict> checkRoute(const AirspaceDb& db, const std::vector<LatLon>& path, const Settings* filter,
                                       uint32_t utcSec, uint32_t dateYmd, float qnhHpa, float maxAglM,
-                                      const std::function<float(double, double)>& ground) {
+                                      const std::function<float(double, double)>& ground, float maxMslM) {
     std::vector<RouteConflict> out;
     const auto& zones = db.zones();
     std::vector<bool> seen(zones.size(), false);
@@ -201,7 +216,9 @@ std::vector<RouteConflict> checkRoute(const AirspaceDb& db, const std::vector<La
                 c.floorAglM = z.lower.toMsl(g, qnhHpa) - gm;
                 if (z.lower.ref == AltLimit::GND) c.floorAglM = 0;
                 c.act = db.activationNow(z, utcSec, dateYmd);
-                c.conflict = c.act != Activation::Inactive && c.floorAglM < maxAglM;
+                float checkAgl = maxAglM;
+                if (!std::isnan(maxMslM)) checkAgl = std::min(checkAgl, maxMslM - gm);  // not above the altitude limit
+                c.conflict = c.act != Activation::Inactive && c.floorAglM < checkAgl;
                 out.push_back(c);
                 seen[zi] = true;
                 break;

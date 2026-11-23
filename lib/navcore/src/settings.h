@@ -35,6 +35,7 @@ struct Settings {
     float escClimbMs = 1.5f;      // airspace exit: climb rate you can hold [m/s]
     float escSinkMs = 2.0f;       // airspace exit: sink rate you are willing to fly [m/s]
     float routeCheckAglM = 1000.f;  // route check: zones with a floor below this height AGL count as conflicts
+    int maxFl = 95;               // highest flight level you may fly (Poland: FL95); 0 = no limit
     int battWarnPct = 20;
     bool varioSound = false;      // no buzzer in v1 hardware
 

@@ -31,7 +31,11 @@ struct EscapeQuery {
     float turnDegS = 12;     // turn rate for the turn-time estimate
     uint32_t utcSec = 0, dateYmd = 0;
     float maxRangeM = 30000; // horizontal search distance
+    float maxAltMsl = NAN;   // highest altitude you may fly, AMSL (NAN = no limit); see maxAltitudeMsl()
 };
+
+// Altitude limit (flight level, e.g. 95) as metres AMSL at the current QNH; NAN when fl <= 0.
+float maxAltitudeMsl(int fl, float qnhHpa);
 
 struct EscapeOption {
     enum Kind : uint8_t { Horizontal, Up, Down } kind = Horizontal;
@@ -41,6 +45,7 @@ struct EscapeOption {
     float targetAlt = 0;   // Up / Down: altitude AMSL to reach
     float dAltM = 0;       // Up / Down: altitude change (+ up, - down)
     float timeS = 0;       // estimate
+    bool overLimit = false;  // Up: not offered because it would end above the altitude limit
 };
 
 struct EscapeResult {
@@ -63,9 +68,10 @@ struct RouteConflict {
 };
 
 // Zones crossed by the route polyline (each zone once, ordered along the route). ground(lat, lon)
-// gives the terrain elevation (may return NAN). maxAglM = planned maximum height above ground.
+// gives the terrain elevation (may return NAN). maxAglM = planned maximum height above ground,
+// capped at maxMslM (the altitude limit AMSL, NAN = none).
 std::vector<RouteConflict> checkRoute(const AirspaceDb& db, const std::vector<LatLon>& path, const Settings* filter,
                                       uint32_t utcSec, uint32_t dateYmd, float qnhHpa, float maxAglM,
-                                      const std::function<float(double, double)>& ground);
+                                      const std::function<float(double, double)>& ground, float maxMslM = NAN);
 
 }  // namespace nav
