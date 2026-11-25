@@ -296,6 +296,41 @@ static void testFlightLog() {
         p.gpsAlt = 200;
         p.pressAlt = 0;
     });
+    // flight 3 (in its own folder): broken records - a 1 s altitude spike to -1500 m, a 2 s position
+    // jump of 55 km, a record without any altitude; later a real level change of +600 m (gap in
+    // the log) that stays: accepted after 15 s, without a climb or distance from the jump itself
+    CHECK(std::system("rm -rf /tmp/pn_spikes && mkdir -p /tmp/pn_spikes") == 0);
+    {
+        TrackLogger lg;
+        LogPoint p{2026, 10, 17, 12, 0, 0, 54.0, 18.0, true, 0, 0, 0};
+        CHECK(lg.start("/tmp/pn_spikes", p, "P", "G", "ID", "GPS", "test"));
+        for (int i = 0; i <= 900; i++) {
+            int t = 12 * 3600 + i;
+            p.hour = (uint8_t)(t / 3600); p.minute = (uint8_t)((t / 60) % 60); p.second = (uint8_t)(t % 60);
+            p.lat = 54.0;
+            p.lon = 18.0 + i * 10.0 / (111195.0 * std::cos(54.0 * kDeg2Rad));  // 36 km/h east
+            float a = 300 + (i >= 600 ? 600.f : 0.f);
+            if (i == 300) a = -1500;
+            if (i == 400 || i == 401) p.lat = 54.5;
+            p.gpsAlt = a;
+            p.pressAlt = a - 50;
+            if (i == 450) p.gpsAlt = p.pressAlt = 0;  // no altitude at all
+            lg.add(p);
+        }
+        lg.stop();
+        auto sl = listFlights("/tmp/pn_spikes");
+        FlightLog sp;
+        CHECK(sl.size() == 1 && loadFlight(sl[0].path, sp));
+        NEAR(sp.st.minAlt, 300, 1);
+        NEAR(sp.st.maxAlt, 900, 1);
+        CHECK(sp.st.maxClimb < 1.0f && sp.st.maxSink > -1.0f);   // no +-150 m/s from the spike or the jump
+        NEAR(sp.st.distKm, 9.0, 0.1);                              // no 2 x 55 km
+        CHECK(sp.maxLat < 54.01);
+        NEAR(sp.st.maxSpeedKmh, 36.0, 1.0);
+        CHECK(sp.st.rejected >= 4 && sp.st.rejected <= 20);        // 1 + 2 + 1 + up to 14 while the new level settles
+        NEAR(sp.pts.back().alt, 900, 1);
+    }
+
     auto list = listFlights("/tmp/pn_flights");
     CHECK(list.size() == 2);
     CHECK(list[0].day == 20 && list[0].month == 11 && list[0].year == 2026 && list[0].durationS == 120);

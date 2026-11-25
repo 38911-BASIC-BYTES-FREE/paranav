@@ -39,6 +39,11 @@ long fileSize(FILE* f) {
     return s;
 }
 
+// Limits for the spike filter (well above what a paraglider / paramotor can do, and a car ride too)
+constexpr float kMaxVzMs = 30.f;         // vertical speed
+constexpr double kMaxSpeedMs = 300 / 3.6; // ground speed
+constexpr int kSettleS = 15;             // a jump that stays this many records is real
+
 }  // namespace
 
 bool parseIgcB(const char* l, IgcFix& f) {
@@ -150,7 +155,8 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
 
     char line[128];
     // pass 1: date and the barometer offset (pressure altitude is QNE; level it to GNSS altitude)
-    double offSum = 0;
+    // (median of the first 120 differences: a broken record does not shift it)
+    int offs[120];
     int offN = 0;
     bool anyPress = false;
     IgcFix fx;
@@ -158,14 +164,15 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
         parseIgcDate(line, out.year, out.month, out.day);
         if (!parseIgcB(line, fx) || !fx.valid) continue;
         if (fx.pressAlt != 0) anyPress = true;
-        if (fx.pressAlt != 0 && fx.gpsAlt != 0 && offN < 120) {
-            offSum += fx.gpsAlt - fx.pressAlt;
-            offN++;
-        }
+        if (fx.pressAlt != 0 && fx.gpsAlt != 0 && offN < 120) offs[offN++] = fx.gpsAlt - fx.pressAlt;
         if (offN >= 120) break;
     }
     out.baro = anyPress;
-    float off = offN ? (float)(offSum / offN) : 0.f;
+    float off = 0.f;
+    if (offN) {
+        std::sort(offs, offs + offN);
+        off = (float)offs[offN / 2];
+    }
     std::fseek(f, 0, SEEK_SET);
 
     // pass 2: points + statistics from every fix
@@ -173,16 +180,27 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
         int t;
         double lat, lon;
         float alt;
+        bool altHeld = false, posHeld = false;  // value held by the spike filter (not measured)
     };
     R ring[64];
     int rn = 0, rh = 0;  // count, head
     int first = -1, prevSec = -1, dayAdd = 0;
     size_t k = 0;
-    R anchor{0, 0, 0, 0};
+    R anchor{0, 0, 0, 0, false, false};
     bool haveAnchor = false;
     LatLon start;
     FlightStats& s = out.st;
     int lastT = 0;
+    // spike filter state: last good values, candidate new level (altitude / position)
+    R good{0, 0, 0, 0, false, false};  // t = time of the last good altitude
+    int goodPosT = 0;    // time of the last good position
+    bool haveGood = false;
+    struct Cand {
+        int n;
+        float alt;
+        double lat, lon;
+    };
+    Cand candA{0, 0, 0, 0}, candP{0, 0, 0, 0};
     while (std::fgets(line, sizeof line, f)) {
         maybeYield(300);  // long files: let the watchdog breathe
         if (!parseIgcB(line, fx) || !fx.valid) continue;
@@ -197,42 +215,97 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
             out.minLon = out.maxLon = fx.lon;
         }
         int t = abs - first;
+        bool altHeld = false, posHeld = false;
+        // altitude: barometric levelled to GNSS; a record without pressure altitude falls back to GNSS
+        // (comparable after the levelling); neither = no altitude in this record
+        bool altRead = fx.pressAlt != 0 || fx.gpsAlt != 0;
         float alt = anyPress && fx.pressAlt != 0 ? fx.pressAlt + off : (float)fx.gpsAlt;
+        double la = fx.lat, lo = fx.lon;
+        // Physically impossible jumps (broken records, GPS glitches) are not used: the last good
+        // value is held instead. A new level that stays consistent for kSettleS is accepted (a
+        // real change after a gap in the log).
+        if (!haveGood) {
+            good = {t, la, lo, alt, false, false};
+            goodPosT = t;
+            haveGood = true;
+        } else {
+            // allowed change grows with the time since the last good value
+            int dtA = std::max(1, t - good.t), dtP = std::max(1, t - goodPosT);
+            bool altBad = !altRead || std::fabs(alt - good.alt) > kMaxVzMs * dtA + 20.f;
+            bool posBad = distanceM({good.lat, good.lon}, {la, lo}) > kMaxSpeedMs * dtP + 200.0;
+            bool shifted = false;
+            auto settle = [&](bool bad, Cand& cd, float v, double v2, double tolAlt, double tolPos) {
+                if (!bad) {
+                    cd.n = 0;
+                    return false;
+                }
+                bool same = cd.n > 0 && (tolAlt > 0 ? std::fabs(v - cd.alt) <= tolAlt
+                                                    : distanceM({cd.lat, cd.lon}, {v2, (double)v}) <= tolPos);
+                cd = {same ? cd.n + 1 : 1, v, v2, (double)v};  // follows the new level while it settles
+                if (cd.n < kSettleS) return true;               // still bad until it settles
+                cd.n = 0;
+                shifted = true;  // a real jump (gap in the log): it must not count as climb / distance
+                return false;
+            };
+            altBad = settle(altBad && altRead, candA, alt, 0, kMaxVzMs * 2 + 20.0, 0) || (!altRead);
+            posBad = settle(posBad, candP, (float)lo, la, 0, 300.0);
+            if (altBad) {
+                alt = good.alt;
+                altHeld = true;
+                s.rejected++;
+            }
+            if (posBad) {
+                la = good.lat;
+                lo = good.lon;
+                posHeld = true;
+                if (!altBad) s.rejected++;
+            }
+            if (!altBad) good.alt = alt, good.t = t;
+            if (!posBad) good.lat = la, good.lon = lo, goodPosT = t;
+            if (shifted) {
+                rn = 0;              // climb / speed windows start again
+                haveAnchor = false;  // the jump is not track length
+            }
+        }
         if (out.pts.empty()) s.takeoffAlt = s.maxAlt = s.minAlt = alt;
         s.maxAlt = std::max(s.maxAlt, alt);
         s.minAlt = std::min(s.minAlt, alt);
-        out.minLat = std::min(out.minLat, fx.lat);
-        out.maxLat = std::max(out.maxLat, fx.lat);
-        out.minLon = std::min(out.minLon, fx.lon);
-        out.maxLon = std::max(out.maxLon, fx.lon);
-        s.maxDistKm = std::max(s.maxDistKm, (float)(distanceM(start, {fx.lat, fx.lon}) / 1000.0));
+        out.minLat = std::min(out.minLat, la);
+        out.maxLat = std::max(out.maxLat, la);
+        out.minLon = std::min(out.minLon, lo);
+        out.maxLon = std::max(out.maxLon, lo);
+        s.maxDistKm = std::max(s.maxDistKm, (float)(distanceM(start, {la, lo}) / 1000.0));
         // track length in >= 5 s steps (GPS jitter does not add up)
         if (!haveAnchor) {
-            anchor = {t, fx.lat, fx.lon, alt};
+            anchor = {t, la, lo, alt};
             haveAnchor = true;
         } else if (t - anchor.t >= 5) {
-            s.distKm += (float)(distanceM({anchor.lat, anchor.lon}, {fx.lat, fx.lon}) / 1000.0);
-            anchor = {t, fx.lat, fx.lon, alt};
+            s.distKm += (float)(distanceM({anchor.lat, anchor.lon}, {la, lo}) / 1000.0);
+            anchor = {t, la, lo, alt};
         }
         // climb / sink / speed over the last >= 10 s
         for (int i = 1; i <= rn; i++) {
             const R& o = ring[(rh - i + 64) % 64];
             int dt = t - o.t;
             if (dt < 10) continue;
-            if (dt <= 30) {
-                float v = (alt - o.alt) / dt;
-                s.maxClimb = std::max(s.maxClimb, v);
-                s.maxSink = std::min(s.maxSink, v);
-                float sp = (float)(distanceM({o.lat, o.lon}, {fx.lat, fx.lon}) / dt * 3.6);
-                s.maxSpeedKmh = std::max(s.maxSpeedKmh, sp);
+            if (dt <= 30) {  // held values are not measurements: no rate from them
+                if (!altHeld && !o.altHeld) {
+                    float v = (alt - o.alt) / dt;
+                    s.maxClimb = std::max(s.maxClimb, v);
+                    s.maxSink = std::min(s.maxSink, v);
+                }
+                if (!posHeld && !o.posHeld) {
+                    float sp = (float)(distanceM({o.lat, o.lon}, {la, lo}) / dt * 3.6);
+                    s.maxSpeedKmh = std::max(s.maxSpeedKmh, sp);
+                }
             }
             break;
         }
-        ring[rh] = {t, fx.lat, fx.lon, alt};
+        ring[rh] = {t, la, lo, alt, altHeld, posHeld};
         rh = (rh + 1) % 64;
         rn = std::min(rn + 1, 64);
         if (k++ % step == 0 || out.pts.empty())
-            out.pts.push_back({t, (float)fx.lat, (float)fx.lon, (int16_t)std::lround(std::max(-500.f, std::min(30000.f, alt)))});
+            out.pts.push_back({t, (float)la, (float)lo, (int16_t)std::lround(std::max(-500.f, std::min(30000.f, alt)))});
         lastT = t;
     }
     std::fclose(f);

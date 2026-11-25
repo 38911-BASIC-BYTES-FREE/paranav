@@ -165,7 +165,7 @@ Bez odpowiedzi lot trwa dalej. Jeśli bezruch trwa nadal, lot kończy się sam *
 * **profil wysokości** na dole (kreskowanie – teren, jeśli są pliki `.hgt`). **Dotyk profilu** zaznacza chwilę lotu: kółko na mapie, a pod profilem godzina, wysokość, wysokość nad terenem, vario i prędkość,
 * **USUŃ** (albo przytrzymaj BOOT) – po potwierdzeniu znikają pliki IGC i GPX; **ZAMKNIJ** (albo przytrzymaj KLAWISZ) – powrót.
 
-Wysokość pochodzi z barometru wyrównanego do wysokości GPS (zapis IGC trzyma wysokość ciśnieniową QNE), bez barometru – z GPS. Statystyki liczone są ze wszystkich punktów, na mapę i profil trafia do 6000 punktów.
+Wysokość pochodzi z barometru wyrównanego do wysokości GPS (zapis IGC trzyma wysokość ciśnieniową QNE), bez barometru – z GPS. **Fizycznie niemożliwe skoki** – ponad 30 m/s w pionie albo 300 km/h w poziomie (uszkodzone zapisy, błędy GPS, także w plikach z innych urządzeń) – są pomijane: zostaje ostatnia dobra wartość, nie psują statystyk ani skali profilu, a pod danymi lotu widać „pominięto błędne odczyty: N”. Nowy poziom, który utrzymuje się 15 s (np. po przerwie w zapisie), jest przyjmowany bez liczenia samego skoku do wznoszenia i długości śladu. Statystyki liczone są ze wszystkich punktów, na mapę i profil trafia do 6000 punktów.
 
 | Lot z zaznaczonym punktem | Z9 – mapa zmniejszona (przeloty) | Pytanie o usunięcie |
 |:---:|:---:|:---:|
@@ -404,6 +404,9 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 ## Historia wersji
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
+
+### Następna wersja (w przygotowaniu)
+* Zapisane loty: filtr fizycznie niemożliwych skoków wysokości i pozycji (uszkodzone zapisy, błędy GPS) – nie psują statystyk ani skali profilu; liczba pominiętych odczytów pod danymi lotu.
 
 ### 0.5.11 – 25.11
 * **Zapisane loty** (Menu → Zapisane loty): lista, podgląd lotu na mapie z danymi po lewej i profilem wysokości na dole (jak w XContest), przybliżanie i przesuwanie mapy, zaznaczanie punktu na profilu, usuwanie lotu (IGC + GPX).

@@ -105,7 +105,10 @@ static const std::vector<HelpTopic> kTopicsPl = {
      "kółko na mapie i pod profilem godzina, wysokość, wysokość nad terenem, vario i prędkość.\n"
      "– USUŃ (albo przytrzymaj BOOT) – pytanie, potem usunięcie plików IGC i GPX z karty. ZAMKNIJ (albo "
      "przytrzymaj KLAWISZ) – powrót.\n"
-     "Wysokość pochodzi z barometru wyrównanego do GPS; bez barometru – z GPS."},
+     "Wysokość pochodzi z barometru wyrównanego do GPS; bez barometru – z GPS. Fizycznie niemożliwe skoki (ponad "
+     "30 m/s w pionie albo 300 km/h w poziomie – uszkodzone zapisy, błędy GPS) są pomijane: zostaje ostatnia dobra "
+     "wartość, a liczba pominiętych odczytów jest pod danymi. Nowy poziom, który utrzymuje się 15 s (przerwa w "
+     "zapisie), jest przyjmowany."},
 
     {"FANET – inni piloci",
      "Wbudowane radio LoRa 868 MHz nadaje Twoją pozycję w otwartym systemie FANET i odbiera innych pilotów. "
@@ -388,7 +391,10 @@ static const std::vector<HelpTopic> kTopicsEn = {
      "– At the bottom: altitude profile (hatched – ground, with terrain files). Tap the profile to select a moment: "
      "a ring on the map and, below the profile, time, altitude, height above ground, vario and speed.\n"
      "– DELETE (or hold BOOT) – a question, then the IGC and GPX files are removed. CLOSE (or hold KEY) – back.\n"
-     "Altitude comes from the barometer levelled to GPS; without a barometer from GPS."},
+     "Altitude comes from the barometer levelled to GPS; without a barometer from GPS. Physically impossible jumps "
+     "(over 30 m/s vertically or 300 km/h horizontally – broken records, GPS errors) are skipped: the last good value "
+     "is kept and the number of skipped readings is shown under the data. A new level that stays for 15 s (a gap in "
+     "the log) is accepted."},
 
     {"FANET – other pilots",
      "The built-in 868 MHz LoRa radio transmits your position on the open FANET network and receives other pilots. "

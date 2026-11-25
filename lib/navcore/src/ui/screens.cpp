@@ -2487,7 +2487,13 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
     row(TR("opadanie", "sink"), b);
     std::snprintf(b, sizeof b, "%d km/h", (int)std::lround(st.maxSpeedKmh));
     row(TR("prędkość", "speed"), b);
-    if (!l.baro) c.text(18, y - 4, trunc(TR("wysokość z GPS (bez barometru)", "GPS altitude (no barometer)"), font_s, FPW - 38), font_s, BLACK);
+    // one note line: skipped broken records (more important) or altitude source
+    if (st.rejected > 0) {
+        std::snprintf(b, sizeof b, TR("pominięto błędne odczyty: %d", "bad readings skipped: %d"), st.rejected);
+        c.text(18, y - 4, trunc(b, font_s, FPW - 38), font_s, BLACK);
+    } else if (!l.baro) {
+        c.text(18, y - 4, trunc(TR("wysokość z GPS (bez barometru)", "GPS altitude (no barometer)"), font_s, FPW - 38), font_s, BLACK);
+    }
     // [ DELETE ] [ CLOSE ]
     const int bw = FPW / 2 - 20;
     c.roundRect(14, FKY, bw, FKH, 14, BLACK, 3);

@@ -165,7 +165,7 @@ Without an answer the flight goes on. If you still do not move, the flight ends 
 * **altitude profile** at the bottom (hatched – ground, with `.hgt` files). **Tap the profile** to select a moment: a ring on the map and, below the profile, time, altitude, height above ground, vario and speed,
 * **DELETE** (or hold BOOT) – after a confirmation the IGC and GPX files are removed; **CLOSE** (or hold KEY) – back.
 
-Altitude comes from the barometer levelled to GPS altitude (the IGC file keeps the QNE pressure altitude), without a barometer from GPS. Statistics use every fix; up to 6000 points go to the map and the profile.
+Altitude comes from the barometer levelled to GPS altitude (the IGC file keeps the QNE pressure altitude), without a barometer from GPS. **Physically impossible jumps** – over 30 m/s vertically or 300 km/h horizontally (broken records, GPS errors, also in files from other devices) – are skipped: the last good value is kept, they do not spoil the statistics or the profile scale, and "bad readings skipped: N" shows under the flight data. A new level that stays for 15 s (e.g. after a gap in the log) is accepted, without counting the jump itself as climb or track length. Statistics use every fix; up to 6000 points go to the map and the profile.
 
 | Flight with a selected point | z9 – map at half size (cross-country) | Delete question |
 |:---:|:---:|:---:|
@@ -404,6 +404,9 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 ## Version history
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
+
+### Next version (in progress)
+* Saved flights: filter for physically impossible altitude and position jumps (broken records, GPS errors) – they no longer spoil the statistics or the profile scale; the number of skipped readings shows under the flight data.
 
 ### 0.5.11 – 25 Nov
 * **Saved flights** (Menu → Saved flights): list, flight on the map with data on the left and an altitude profile at the bottom (like XContest), zoom and move the map, select a point on the profile, delete a flight (IGC + GPX).

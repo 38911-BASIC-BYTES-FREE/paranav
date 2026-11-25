@@ -31,6 +31,7 @@ struct FlightStats {
     float maxClimb = 0, maxSink = 0;  // m/s over 10 s
     float maxSpeedKmh = 0;     // over 10 s
     float avgSpeedKmh = 0;     // distance / duration
+    int rejected = 0;          // records with an impossible altitude / position jump (last good value held)
 };
 
 struct FlightLog {
