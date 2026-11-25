@@ -405,10 +405,12 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
 
-### Następna wersja (w przygotowaniu)
+### 0.5.11 – 25.11
 * **Zapisane loty** (Menu → Zapisane loty): lista, podgląd lotu na mapie z danymi po lewej i profilem wysokości na dole (jak w XContest), przybliżanie i przesuwanie mapy, zaznaczanie punktu na profilu, usuwanie lotu (IGC + GPX).
 * **TOPO bez sygnału GPS**: mapa z ostatniej znanej pozycji (zapamiętanej po wyłączeniu), z napisem BRAK SYGNAŁU GPS, bez stref.
 * **Ekran wyłączenia** z mapą z karty w tle.
+* Ślad lotu jako podwójna linia ze strzałkami kierunku; zakres przybliżenia według map pod lotem (z9 z pomniejszonych kafelków z10 dla przelotów); pełne odświeżenie przy zmianie widoku mapy; powrót do listy lotów po zamknięciu / usunięciu.
+* Poprawki: restart (watchdog) przy otwieraniu lotu – teren pod profilem liczony raz; pytanie o tryb USB pojawiające się na chwilę bez kabla – wykrycie USB wymaga dwóch zgodnych odczytów.
 
 ### 0.5.10 – 23.11
 * **Limit wysokości FL95** jako ustawienie (Menu → Alarmy → *Maks. wysokość FL*, `maxFl` w `config.ini`, 0 = bez limitu): wyjście ze strefy nie proponuje już wznoszenia ponad limit (np. nad strefę kończącą się na FL95), kontrola trasy nie liczy wysokości lotu powyżej limitu.

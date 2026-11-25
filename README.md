@@ -405,10 +405,12 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
 
-### Next version (in progress)
+### 0.5.11 – 25 Nov
 * **Saved flights** (Menu → Saved flights): list, flight on the map with data on the left and an altitude profile at the bottom (like XContest), zoom and move the map, select a point on the profile, delete a flight (IGC + GPX).
 * **TOPO without a GPS signal**: map at the last known position (kept over power-off), with a NO GPS SIGNAL banner, no airspace.
 * **Power-off screen** with the map from the card in the background.
+* Flight track as a double line with direction arrows; zoom range from the maps under the flight (z9 from half-size z10 tiles for cross-country flights); full refresh when the map view changes; back to the flight list after closing / deleting.
+* Fixes: restart (watchdog) when opening a flight – the ground under the profile is computed once; the USB question popping up for a moment with no cable – USB detection needs two matching readings.
 
 ### 0.5.10 – 23 Nov
 * **FL95 altitude limit** as a setting (Menu → Alarms → *Max altitude FL*, `maxFl` in `config.ini`, 0 = no limit): the airspace exit no longer offers climbing above the limit (e.g. over a zone ending at FL95), the route check never counts a flying height above the limit.
