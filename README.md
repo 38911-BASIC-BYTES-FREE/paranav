@@ -405,7 +405,7 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
 
-### Next version (in progress)
+### 0.5.12 – 25 Nov
 * Saved flights: filter for physically impossible altitude and position jumps (broken records, GPS errors) – they no longer spoil the statistics or the profile scale; the number of skipped readings shows under the flight data.
 * Altitude profile: smaller scale labels (16 px), times at the bottom by the time axis.
 

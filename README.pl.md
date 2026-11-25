@@ -405,7 +405,7 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
 
-### Następna wersja (w przygotowaniu)
+### 0.5.12 – 25.11
 * Zapisane loty: filtr fizycznie niemożliwych skoków wysokości i pozycji (uszkodzone zapisy, błędy GPS) – nie psują statystyk ani skali profilu; liczba pominiętych odczytów pod danymi lotu.
 * Profil wysokości: mniejsze podpisy skali (16 px), godziny na dole przy osi czasu.
 
