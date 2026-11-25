@@ -19,6 +19,7 @@ struct Font {
     uint8_t ascent;
 };
 
+extern const Font font_xs;   // 16 px bold condensed - chart axis labels only (digits, : - . m)
 extern const Font font_s;    // 22 px bold condensed - small labels
 extern const Font font_sb;   // 25 px bold condensed - labels, list text
 extern const Font font_m;    // 32 px bold condensed - secondary values

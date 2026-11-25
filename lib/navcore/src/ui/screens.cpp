@@ -2392,7 +2392,7 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
         }
         for (float a = std::ceil(lo / stepA) * stepA; a <= hi; a += stepA) {
             int y = ay(a);
-            if (y >= FGT + 18) c.line(gx0, y, gx1, y, BLACK, 1, 4);
+            if (y >= FGT + 14) c.line(gx0, y, gx1, y, BLACK, 1, 4);
         }
         // time ticks every 15 / 30 / 60 min (local time)
         int stepT = st.durationS <= 3600 ? 900 : st.durationS <= 3 * 3600 ? 1800 : 3600;
@@ -2405,24 +2405,25 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
             if (x) c.line(prev.x, prev.y, p.x, p.y, BLACK, 3);
             prev = p;
         }
-        // labels on white boxes, over the line: altitudes on the left, times at the top
+        // small labels (16 px) on white boxes: altitudes on the left, times at the bottom by the time
+        // axis (like XContest) - the upper part of the chart stays free for the altitude line
         auto tag = [&](int x, int base, const std::string& t, Align al) {
-            int tw = Canvas::textWidth(t.c_str(), font_s);
+            int tw = Canvas::textWidth(t.c_str(), font_xs);
             int lx = al == CENTER ? x - tw / 2 : al == RIGHT ? x - tw : x;
-            c.fillRect(lx - 3, base - 19, tw + 6, 24, WHITE);
-            c.text(x, base, t, font_s, BLACK, al);
+            c.fillRect(lx - 3, base - 14, tw + 6, 19, WHITE);
+            c.text(x, base, t, font_xs, BLACK, al);
         };
         for (float a = std::ceil(lo / stepA) * stepA; a <= hi; a += stepA) {
             int y = ay(a);
-            if (y < FGT + 18 || y > FGB - 16) continue;
+            if (y < FGT + 14 || y > FGB - 22) continue;  // not on the time labels
             std::snprintf(b, sizeof b, "%d m", (int)a);
             tag(gx0 + 2, y + 8, b, LEFT);
         }
         for (int k = (s0 / stepT + 1) * stepT; k - s0 <= st.durationS; k += stepT) {
             int x = fvTx(l, k - s0);
             std::string ts = fvClock(k % 86400);
-            int tw = Canvas::textWidth(ts.c_str(), font_s);
-            if (x - tw / 2 > gx0 + 80 && x + tw / 2 < gx1) tag(x, FGT + 20, ts, CENTER);
+            int tw = Canvas::textWidth(ts.c_str(), font_xs);
+            if (x - tw / 2 > gx0 + 60 && x + tw / 2 < gx1) tag(x, FGB - 4, ts, CENTER);
         }
         c.hline(gx0, FGB + 1, gw, BLACK);
         // readout line: selected point, or a hint

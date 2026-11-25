@@ -407,6 +407,7 @@ Newest first. Dates are the days the code packages were made (2026). The firmwar
 
 ### Next version (in progress)
 * Saved flights: filter for physically impossible altitude and position jumps (broken records, GPS errors) – they no longer spoil the statistics or the profile scale; the number of skipped readings shows under the flight data.
+* Altitude profile: smaller scale labels (16 px), times at the bottom by the time axis.
 
 ### 0.5.11 – 25 Nov
 * **Saved flights** (Menu → Saved flights): list, flight on the map with data on the left and an altitude profile at the bottom (like XContest), zoom and move the map, select a point on the profile, delete a flight (IGC + GPX).

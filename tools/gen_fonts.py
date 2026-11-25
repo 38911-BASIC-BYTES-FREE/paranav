@@ -13,8 +13,11 @@ PL = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"
 FULL = "".join(chr(c) for c in range(32, 127)) + PL + "°·–→←↑↓▲▼◄►●✓⚡…Ø›"
 DIGITS = " +-.,:/0123456789°–"
 
+AXIS = " +-.,:0123456789m"  # chart axis labels only (altitudes, times): small, few glyphs
+
 # name, ttf file, pixel size, charset
 FONTS = [
+    ("font_xs", "DejaVuSansCondensed-Bold.ttf", 16, AXIS),
     ("font_s", "DejaVuSansCondensed-Bold.ttf", 22, FULL),
     ("font_sb", "DejaVuSansCondensed-Bold.ttf", 25, FULL),
     ("font_m", "DejaVuSansCondensed-Bold.ttf", 32, FULL),

@@ -407,6 +407,7 @@ Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Nu
 
 ### Następna wersja (w przygotowaniu)
 * Zapisane loty: filtr fizycznie niemożliwych skoków wysokości i pozycji (uszkodzone zapisy, błędy GPS) – nie psują statystyk ani skali profilu; liczba pominiętych odczytów pod danymi lotu.
+* Profil wysokości: mniejsze podpisy skali (16 px), godziny na dole przy osi czasu.
 
 ### 0.5.11 – 25.11
 * **Zapisane loty** (Menu → Zapisane loty): lista, podgląd lotu na mapie z danymi po lewej i profilem wysokości na dole (jak w XContest), przybliżanie i przesuwanie mapy, zaznaczanie punktu na profilu, usuwanie lotu (IGC + GPX).
