@@ -160,15 +160,16 @@ Without an answer the flight goes on. If you still do not move, the flight ends 
 ### Saved flights
 **Menu → Saved flights** – flights on the card (IGC files in `logs/`, newest first: date, takeoff time, airtime). The chosen flight opens on a screen similar to XContest (after landing; the list does not open in flight):
 * **flight data on the left**: airtime, track length, average speed, max gain and the maximum values – altitude, distance from takeoff, climb and sink (over 10 s), speed,
-* **the track on the background map** from the card (white where there is no map); the track is a hollow double line with arrows in the flying direction (roads are solid black), dot – takeoff, square – landing. Every change of the map view does a full e-paper refresh (no ghost of the previous view). **+ / –** (or KEY / BOOT short) – zoom in / out, **ALL** – whole flight, **tap the map** to move that point to the centre,
+* **the track on the background map** from the card (white where there is no map); the track is a hollow double line with arrows in the flying direction (roads are solid black), dot – takeoff, square – landing. Every change of the map view does a full e-paper refresh (no ghost of the previous view).
+* **zoom range** follows the maps on the card under the flight: from the most detailed level down to one level below the lowest – drawn from the tiles one level up at half size (e.g. z9 from z10: a ~120 km wide window, for cross-country flights); at the end of the range the button is faded. A flight that still does not fit is shown whole by **ALL** without the map ("no map at this scale"). A flight with no map under it – any zoom (z5–z14) on a white background. **+ / –** (or KEY / BOOT short) – zoom in / out, **ALL** – whole flight, **tap the map** to move that point to the centre,
 * **altitude profile** at the bottom (hatched – ground, with `.hgt` files). **Tap the profile** to select a moment: a ring on the map and, below the profile, time, altitude, height above ground, vario and speed,
 * **DELETE** (or hold BOOT) – after a confirmation the IGC and GPX files are removed; **CLOSE** (or hold KEY) – back.
 
 Altitude comes from the barometer levelled to GPS altitude (the IGC file keeps the QNE pressure altitude), without a barometer from GPS. Statistics use every fix; up to 6000 points go to the map and the profile.
 
-| Flight with a selected point | Delete question |
-|:---:|:---:|
-| <img src="docs/screens/en/G_lot_punkt.png" width="100%" alt="Saved flight"> | <img src="docs/screens/en/G_lot_usun.png" width="100%" alt="Deleting a flight"> |
+| Flight with a selected point | z9 – map at half size (cross-country) | Delete question |
+|:---:|:---:|:---:|
+| <img src="docs/screens/en/G_lot_punkt.png" width="100%" alt="Saved flight"> | <img src="docs/screens/en/G_lot_polowa_skali.png" width="100%" alt="Half-size map"> | <img src="docs/screens/en/G_lot_usun.png" width="100%" alt="Deleting a flight"> |
 
 ### Airspace exit and route check
 When you enter active airspace (the zones that raise the INSIDE alert – ignored classes and zones inactive according to the AUP file do not count), the alert has two buttons:

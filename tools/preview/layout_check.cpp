@@ -276,6 +276,7 @@ static void render(World& w, const std::string& name) {
         ui::FlightView fv;
         fv.log = &fl;
         fv.title = ext ? "2026-12-31-XPN-NAV-99-bardzo-dluga-nazwa-pliku.igc" : "2026-12-31-XPN-NAV-01.igc";
+        ui::flightViewSetMaps(fv, u.topo);
         ui::flightViewFit(fv);
         boxes.clear();
         ui::drawFlightView(c, u, fv);
@@ -300,10 +301,46 @@ static void render(World& w, const std::string& name) {
         ok = ok && ui::flightViewTap(t, 700, 360) == ui::FV_DELETE;                  // DELETE
         ok = ok && ui::flightViewTap(t, 230, 500) == ui::FV_CLOSE;                   // CLOSE
         int z = t.z;
-        ok = ok && ui::flightViewTap(t, 920, 80) == ui::FV_REDRAW && t.z == std::min(14, z + 1);  // +
-        ok = ok && ui::flightViewTap(t, 920, 145) == ui::FV_REDRAW && t.z == z;                   // -
+        if (z < t.zMax) {
+            ok = ok && ui::flightViewTap(t, 920, 80) == ui::FV_REDRAW && t.z == z + 1;  // +
+            ok = ok && ui::flightViewTap(t, 920, 145) == ui::FV_REDRAW && t.z == z;     // -
+        }
+        // the zoom range ends: + at zMax and - at the floor do nothing
+        while (ui::flightViewZoom(t, +1)) {}
+        ok = ok && t.z == t.zMax && ui::flightViewTap(t, 920, 80) == ui::FV_NONE;
+        while (ui::flightViewZoom(t, -1)) {}
+        ok = ok && t.z == std::min(t.zFloor, t.zMin) && ui::flightViewTap(t, 920, 145) == ui::FV_NONE;
+        ui::flightViewFit(t);
         ok = ok && ui::flightViewTap(t, 600, 470) == ui::FV_REDRAW && t.cursor >= 0;              // profile
-        if (!ok) std::printf("  [LOT] wrong touch mapping\n"), problems++;
+        if (!ok) std::printf("  [LOT] wrong touch mapping / zoom range\n"), problems++;
+        // map-aware zoom range (when maps are loaded): one level below the lowest map level
+        if (u.topo && !u.topo->areas().empty()) {
+            // a flight over the first map area
+            const TopoArea& A = u.topo->areas()[0];
+            FlightLog fa = fl;
+            for (auto& p : fa.pts) {
+                p.lat = (float)(A.lat0 + (p.lat - n0.lat));
+                p.lon = (float)(A.lon0 + (p.lon - n0.lon));
+            }
+            fa.minLat = A.lat0 - 0.03; fa.maxLat = A.lat0 + 0.03; fa.minLon = A.lon0; fa.maxLon = A.lon0 + 0.12;
+            ui::FlightView m;
+            m.log = &fa;
+            ui::flightViewSetMaps(m, u.topo);
+            int lo = 99, hi = -1;
+            for (const auto& a : u.topo->areas())
+                for (int zz = 10; zz <= 14; zz++)
+                    if (a.hasZoom(zz)) lo = std::min(lo, zz), hi = std::max(hi, zz);
+            if (!m.mapUnder || m.zMin != lo - 1 || m.zMax != hi)
+                std::printf("  [LOT] zoom range %d..%d, expected %d..%d\n", m.zMin, m.zMax, lo - 1, hi), problems++;
+            // the half-size level and the level below it (no map: note)
+            ui::FlightView h = m;
+            ui::flightViewFit(h);
+            while (h.z > m.zMin && ui::flightViewZoom(h, -1)) {}
+            boxes.clear();
+            ui::drawFlightView(c, u, h);
+            analyse(name + "/LOT-POLOWA-SKALI", boxes, true);
+            savePgm("/tmp/layout/" + name + "_flight_half.pgm");
+        }
         // back to the flight list: menu opened inside a submenu at a given row
         {
             using M = ui::MenuItem;

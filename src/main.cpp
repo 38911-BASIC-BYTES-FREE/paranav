@@ -848,6 +848,7 @@ static void openFlight(const std::string& path, const std::string& name) {
     flightView = ui::FlightView();
     flightView.log = &viewedFlight;
     flightView.title = name;
+    ui::flightViewSetMaps(flightView, sys.sdOk ? &topo : nullptr);
     ui::flightViewFit(flightView);
     flightViewOpen = true;
 }

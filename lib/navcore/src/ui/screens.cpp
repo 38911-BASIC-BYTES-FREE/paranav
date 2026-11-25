@@ -1,4 +1,5 @@
 #include "screens.h"
+#include "../yield.h"
 #include "../i18n.h"
 
 #include <algorithm>
@@ -881,8 +882,56 @@ static void blitTileRect(Canvas& c, const uint8_t* bits, int sx, int sy, int x0,
 // Map tiles of zoom z for a screen rectangle (x0, y0, w, h); (ox, oy) = global pixel of (x0, y0).
 // Every tile comes from the map area that covers it (white where there is no map). Returns the
 // number of tiles drawn.
+// any map area with tiles of zoom z
+static bool anyAreaHasZoom(nav::TopoMap* topo, int z) {
+    if (!topo) return false;
+    for (const auto& a : topo->areas())
+        if (a.hasZoom(z)) return true;
+    return false;
+}
+
+// Zoom z drawn from the tiles of z + 1 at half size: a pixel is black when at least 2 of its 4
+// source pixels are (thin lines survive, fills do not turn grey)
+static int drawTilesRectHalf(Canvas& c, nav::TopoMap* topo, int z, double ox, double oy, int x0, int y0, int w, int h) {
+    const int z1 = z + 1;
+    const double ox1 = std::floor(ox) * 2, oy1 = std::floor(oy) * 2;
+    int drawn = 0;
+    int tx0 = (int)std::floor(ox1 / 256), ty0 = (int)std::floor(oy1 / 256);
+    int tx1 = (int)std::floor((ox1 + 2 * w - 1) / 256), ty1 = (int)std::floor((oy1 + 2 * h - 1) / 256);
+    for (int ty = ty0; ty <= ty1; ty++)
+        for (int tx = tx0; tx <= tx1; tx++) {
+            double la, lo;
+            nav::topoToLatLon(tx * 256.0 + 128, ty * 256.0 + 128, z1, la, lo);
+            int area = -1;
+            for (int i = 0; i < (int)topo->areas().size(); i++)
+                if (topo->areas()[i].hasZoom(z1) && topo->areas()[i].contains(la, lo)) { area = i; break; }
+            if (area < 0) continue;
+            const uint8_t* bits = nullptr;
+            if (topo->tile(area, z1, tx, ty, &bits) != nav::TopoTile::Ok) continue;
+            // screen position of the tile's top-left corner (half size: 128 x 128)
+            int sx = x0 + (int)std::floor((tx * 256.0 - ox1) / 2), sy = y0 + (int)std::floor((ty * 256.0 - oy1) / 2);
+            for (int r = 0; r < 128; r++) {
+                int y = sy + r;
+                if (y < y0 || y >= y0 + h) continue;
+                const uint8_t* a = bits + (2 * r) * 32;
+                const uint8_t* b = a + 32;
+                for (int col = 0; col < 128; col++) {
+                    int x = sx + col;
+                    if (x < x0 || x >= x0 + w) continue;
+                    int k = 2 * col, byte = k >> 3, bit = 0x80 >> (k & 7), bit2 = bit >> 1;
+                    int n = ((a[byte] & bit) != 0) + ((a[byte] & bit2) != 0) + ((b[byte] & bit) != 0) + ((b[byte] & bit2) != 0);
+                    if (n >= 2) c.px(x, y, BLACK);
+                }
+            }
+            drawn++;
+            nav::maybeYield(4);
+        }
+    return drawn;
+}
+
 static int drawTilesRect(Canvas& c, nav::TopoMap* topo, int z, double ox, double oy, int x0, int y0, int w, int h) {
-    if (!topo || topo->areas().empty() || z < nav::kTopoMinZoom || z > nav::kTopoMaxZoom) return 0;
+    if (!topo || topo->areas().empty() || z < nav::kTopoMinZoom - 1 || z > nav::kTopoMaxZoom) return 0;
+    if (!anyAreaHasZoom(topo, z)) return anyAreaHasZoom(topo, z + 1) ? drawTilesRectHalf(c, topo, z, ox, oy, x0, y0, w, h) : 0;
     int drawn = 0;
     int tx0 = (int)std::floor(ox / 256), ty0 = (int)std::floor(oy / 256);
     int tx1 = (int)std::floor((ox + w - 1) / 256), ty1 = (int)std::floor((oy + h - 1) / 256);
@@ -2105,10 +2154,29 @@ void fvRates(const nav::FlightLog& l, int i, float& vario, float& kmh) {
 }
 }  // namespace
 
+void flightViewSetMaps(FlightView& v, nav::TopoMap* topo) {
+    v.mapUnder = false;
+    v.zMin = kFvMinZ;
+    v.zMax = kFvMaxZ;
+    if (!v.log || v.log->pts.empty() || !topo) return;
+    const nav::FlightLog& l = *v.log;
+    int lo = 99, hi = -1;
+    for (const auto& a : topo->areas()) {
+        // map area overlapping the flight's box
+        if (a.latS > l.maxLat || a.latN < l.minLat || a.lonW > l.maxLon || a.lonE < l.minLon) continue;
+        for (int z = nav::kTopoMinZoom; z <= nav::kTopoMaxZoom; z++)
+            if (a.hasZoom(z)) lo = std::min(lo, z), hi = std::max(hi, z);
+    }
+    if (hi < 0) return;  // no map under this flight: free zoom over a white background
+    v.mapUnder = true;
+    v.zMin = std::max(kFvMinZ, lo - 1);  // one level below the map: half-size tiles
+    v.zMax = hi;
+}
+
 void flightViewFit(FlightView& v) {
     if (!v.log || v.log->pts.empty()) return;
     const nav::FlightLog& l = *v.log;
-    for (int z = kFvMaxZ; z >= kFvMinZ; z--) {
+    for (int z = v.zMax; z >= kFvMinZ; z--) {
         double x0, y0, x1, y1;
         nav::topoToPixel(l.maxLat, l.minLon, z, x0, y0);
         nav::topoToPixel(l.minLat, l.maxLon, z, x1, y1);
@@ -2116,19 +2184,22 @@ void flightViewFit(FlightView& v) {
             v.z = z;
             v.cx = (x0 + x1) / 2;
             v.cy = (y0 + y1) / 2;
+            v.zFloor = std::min(v.zMin, z);  // a long flight: whole flight even below the map levels
             v.mapMoved = true;
             return;
         }
     }
 }
 
-void flightViewZoom(FlightView& v, int dir) {
-    int nz = std::max(kFvMinZ, std::min(kFvMaxZ, v.z + (dir > 0 ? 1 : -1)));
+bool flightViewZoom(FlightView& v, int dir) {
+    int nz = std::max(std::min(v.zFloor, v.zMin), std::min(v.zMax, v.z + (dir > 0 ? 1 : -1)));
+    if (nz == v.z) return false;
     double k = std::ldexp(1.0, nz - v.z);
     v.cx *= k;
     v.cy *= k;
     v.z = nz;
     v.mapMoved = true;
+    return true;
 }
 
 FlightViewAction flightViewTap(FlightView& v, int x, int y) {
@@ -2151,11 +2222,13 @@ FlightViewAction flightViewTap(FlightView& v, int x, int y) {
         return FV_NONE;
     }
     if (x >= FBX && y >= FBY[0] && y < FBY[2] + FBH) {
-        if (y < FBY[0] + FBH) flightViewZoom(v, +1);
-        else if (y >= FBY[1] && y < FBY[1] + FBH) flightViewZoom(v, -1);
-        else if (y >= FBY[2]) flightViewFit(v);
-        else return FV_NONE;
-        return FV_REDRAW;
+        if (y < FBY[0] + FBH) return flightViewZoom(v, +1) ? FV_REDRAW : FV_NONE;
+        if (y >= FBY[1] && y < FBY[1] + FBH) return flightViewZoom(v, -1) ? FV_REDRAW : FV_NONE;
+        if (y >= FBY[2]) {
+            flightViewFit(v);
+            return FV_REDRAW;
+        }
+        return FV_NONE;
     }
     if (y >= FMY && y < FMY + FMH) {  // map: this point to the centre
         v.cx += x - (FMX + FMW / 2);
@@ -2230,7 +2303,9 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
         c.fillCircle(q.x, q.y, 4, BLACK);
     }
     if (tiles == 0) {
-        const char* nm = TR("brak mapy dla tego miejsca", "no map for this place");
+        // map under the flight, but not at this scale (a long flight shown whole) / no map here at all
+        const char* nm = v.mapUnder && v.z < v.zMin ? TR("mapa niedostępna w tej skali", "no map at this scale")
+                                                    : TR("brak mapy dla tego miejsca", "no map for this place");
         int tw = Canvas::textWidth(nm, font_s);
         c.fillRect(FMX + 8, FMY + 8, tw + 16, 30, WHITE);
         c.text(FMX + 16, FMY + 30, nm, font_s, BLACK);
@@ -2254,13 +2329,21 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
         c.vline(bx + len - 1, y - 12, 16, BLACK);
         c.text(bx + len + 10, y + 2, b, font_s, BLACK);
     }
-    // zoom buttons
+    // zoom buttons; at the end of the zoom range: no shadow, dashed edge, faded sign
     const char* bl[3] = {"+", "–", TR("CAŁY", "ALL")};
+    const bool off[3] = {v.z >= v.zMax, v.z <= std::min(v.zFloor, v.zMin), false};
     for (int i = 0; i < 3; i++) {
-        c.fillRoundRect(FBX + 4, FBY[i] + 4, FBW, FBH, 12, BLACK);  // shadow
+        if (!off[i]) c.fillRoundRect(FBX + 4, FBY[i] + 4, FBW, FBH, 12, BLACK);  // shadow
         c.fillRoundRect(FBX, FBY[i], FBW, FBH, 12, WHITE);
-        c.roundRect(FBX, FBY[i], FBW, FBH, 12, BLACK, 3);
+        if (off[i]) {
+            c.rect(FBX + 2, FBY[i] + 2, FBW - 4, FBH - 4, BLACK, 1);
+        } else {
+            c.roundRect(FBX, FBY[i], FBW, FBH, 12, BLACK, 3);
+        }
         c.text(FBX + FBW / 2, FBY[i] + (i < 2 ? 42 : 37), bl[i], i < 2 ? font_l : font_s, BLACK, CENTER);
+        if (off[i])  // fade: every other pixel of the sign white
+            for (int y = FBY[i] + 4; y < FBY[i] + FBH - 4; y++)
+                for (int x = FBX + 4 + (y & 1); x < FBX + FBW - 4; x += 2) c.px(x, y, WHITE);
     }
     c.hline(FMX, FGY - 1, FMW, BLACK);
     c.hline(FMX, FGY, FMW, BLACK);

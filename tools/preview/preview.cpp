@@ -337,6 +337,7 @@ int main(int argc, char** argv) {
             ui::FlightView fv;
             fv.log = &fl;
             fv.title = files[0].name;
+            ui::flightViewSetMaps(fv, &demo);
             ui::flightViewFit(fv);
             ui::UiContext u3 = u;
             ui::drawFlightView(c, u3, fv);
@@ -350,6 +351,15 @@ int main(int argc, char** argv) {
             fv.askDelete = true;
             ui::drawFlightView(c, u3, fv);
             savePgm(out + "/G_lot_usun.pgm");
+            fv.askDelete = false;
+            ui::flightViewFit(fv);
+            while (fv.z > fv.zMin) ui::flightViewZoom(fv, -1);  // lowest map level: tiles at half size
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot_polowa_skali.pgm");
+            fv.zFloor = fv.zMin - 1;  // what a long flight looks like below the map levels
+            ui::flightViewZoom(fv, -1);
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot_bez_mapy_w_skali.pgm");
         }
         u.topo = &topo;
     }

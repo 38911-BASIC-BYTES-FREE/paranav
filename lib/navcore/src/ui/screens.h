@@ -124,10 +124,16 @@ struct FlightView {
     int cursor = -1;        // selected point (index into log->pts), -1 = none
     bool askDelete = false;
     bool mapMoved = false;  // set by zoom / move / fit: the whole map changed (full e-paper refresh)
+    // zoom range for + / -: the map levels under the flight (one level below the lowest is drawn from
+    // the next level at half size); without any map under the flight 5..14. zFloor: CAL / ALL may go
+    // lower for a flight that does not fit (then without the map).
+    bool mapUnder = false;
+    int zMin = 5, zMax = 14, zFloor = 5;
 };
 enum FlightViewAction { FV_NONE, FV_REDRAW, FV_CLOSE, FV_DELETE };
+void flightViewSetMaps(FlightView& v, nav::TopoMap* topo);  // zoom range from the maps under the flight (call after log is set)
 void flightViewFit(FlightView& v);                 // whole flight in the map window
-void flightViewZoom(FlightView& v, int dir);       // +1 in, -1 out (keeps the centre)
+bool flightViewZoom(FlightView& v, int dir);       // +1 in, -1 out (keeps the centre); false at the end of the range
 // Touch: buttons, map (re-centre on the touched point), profile (select a point). FV_DELETE only
 // from the confirmation card; the delete button opens that card (FV_REDRAW).
 FlightViewAction flightViewTap(FlightView& v, int x, int y);
