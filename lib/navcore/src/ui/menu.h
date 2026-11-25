@@ -79,6 +79,9 @@ struct MenuItem {
 class Menu {
 public:
     void open(std::shared_ptr<MenuItem> root);
+    // Open with submenus already entered: path = selected row on each level (last one = selected row
+    // of the innermost list); rows out of range are clamped, stops at a non-submenu row.
+    void openAt(std::shared_ptr<MenuItem> root, const std::vector<int>& path);
     void close();
     bool isOpen() const { return open_; }
     // Returns true if something changed that needs saving

@@ -354,9 +354,13 @@ static bool chgRead(uint8_t reg, uint8_t& v) { return i2cRead(BQ25896_ADDR, reg,
 static bool chgWrite(uint8_t reg, uint8_t v) { return i2cWrite8(BQ25896_ADDR, reg, v); }
 
 bool usbPowered() {
-    uint8_t s;
-    if (!chgRead(0x0B, s)) return false;
-    return (s & 0x04) != 0;  // REG0B bit2 PG_STAT: input power good
+    // REG0B: bit2 PG_STAT (input power good), bits 7:5 VBUS_STAT (000 = no input). Read twice and
+    // require both to agree: the I2C bus is shared with touch and the e-paper power chip, and a single
+    // garbled read used to pop up the USB question for a moment.
+    uint8_t s1, s2;
+    if (!chgRead(0x0B, s1) || !chgRead(0x0B, s2)) return false;
+    auto on = [](uint8_t s) { return (s & 0x04) != 0 && (s & 0xE0) != 0; };
+    return on(s1) && on(s2);
 }
 
 bool powerOff() {

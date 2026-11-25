@@ -104,6 +104,21 @@ void Menu::open(std::shared_ptr<MenuItem> root) {
     editing_ = false;
 }
 
+void Menu::openAt(std::shared_ptr<MenuItem> root, const std::vector<int>& path) {
+    open(std::move(root));
+    for (size_t i = 0; i < path.size(); i++) {
+        Level& l = stack_.back();
+        int n = (int)l.item->children.size();
+        if (n == 0) break;
+        l.sel = std::max(0, std::min(n - 1, path[i]));
+        adjustScroll();
+        if (i + 1 == path.size()) break;
+        MenuItem& it = l.item->children[l.sel];
+        if (it.kind != MenuItem::Submenu) break;
+        stack_.push_back({&it, 0, 0});
+    }
+}
+
 std::string Menu::describe() const {
     if (!open_) return "";
     std::string s = "MENU";

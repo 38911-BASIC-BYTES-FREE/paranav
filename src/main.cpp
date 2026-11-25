@@ -135,6 +135,7 @@ static void saveLastPos() {
 
 // Saved flight viewer (Menu > Saved flights)
 static bool flightViewOpen = false;
+static int flightListSel = 0;  // row of the viewed flight in Menu > Saved flights (back to the list)
 static nav::FlightLog viewedFlight;
 static ui::FlightView flightView;
 
@@ -552,7 +553,12 @@ static void pollUsbPower(uint32_t now) {
     static uint32_t last = 0;
     if (now - last < 1000) return;
     last = now;
-    bool p = board::usbPowered();
+    // plugged in: two readings in a row (1 s apart) - a single wrong reading must not pop up the
+    // USB question; unplugged: at once
+    static int onCount = 0;
+    bool raw = board::usbPowered();
+    onCount = raw ? onCount + 1 : 0;
+    bool p = usbPower ? raw : onCount >= 2;
     bool plugged = p && !usbPower, unplugged = !p && usbPower;
     usbPower = p;
     bool flying = fc.state().phase == Phase::Flying;
@@ -846,6 +852,8 @@ static void openFlight(const std::string& path, const std::string& name) {
     flightViewOpen = true;
 }
 
+static void reopenFlightList();
+
 static ui::MenuItem menuFlights() {
     using M = ui::MenuItem;
     std::vector<M> list;
@@ -857,7 +865,11 @@ static ui::MenuItem menuFlights() {
         else snprintf(l, sizeof l, "%s", f.name.c_str());
         snprintf(v, sizeof v, "%d:%02d h", f.durationS / 3600, (f.durationS / 60) % 60);
         std::string path = f.path, name = f.name, val = v;
-        M it = M::act(l, [path, name] { openFlight(path, name); }, true);
+        int row = (int)list.size();
+        M it = M::act(l, [path, name, row] {
+            flightListSel = row;
+            openFlight(path, name);
+        }, true);
         it.value = [val] { return val; };
         list.push_back(std::move(it));
     }
@@ -887,6 +899,15 @@ static std::shared_ptr<ui::MenuItem> buildMenu() {
     root->children.push_back(menuHelp());
     root->children.push_back(menuOff());
     return root;
+}
+
+static void reopenFlightList() {
+    auto root = buildMenu();
+    int idx = -1;
+    for (int i = 0; i < (int)root->children.size(); i++)
+        if (root->children[i].label == TR("Zapisane loty", "Saved flights")) idx = i;
+    if (idx < 0) return;
+    menu.openAt(root, {idx, flightListSel});
 }
 
 // ------------------------------------------------------------------ alerts
@@ -1201,6 +1222,7 @@ static bool handleEventImpl(const board::Event& e) {
             flightViewOpen = false;
             viewedFlight = nav::FlightLog();  // free the points
             flightView = ui::FlightView();
+            reopenFlightList();  // back to the list (after a delete: the next flight is selected)
         }
         return true;
     }

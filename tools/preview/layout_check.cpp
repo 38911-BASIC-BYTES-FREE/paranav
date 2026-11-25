@@ -304,6 +304,16 @@ static void render(World& w, const std::string& name) {
         ok = ok && ui::flightViewTap(t, 920, 145) == ui::FV_REDRAW && t.z == z;                   // -
         ok = ok && ui::flightViewTap(t, 600, 470) == ui::FV_REDRAW && t.cursor >= 0;              // profile
         if (!ok) std::printf("  [LOT] wrong touch mapping\n"), problems++;
+        // back to the flight list: menu opened inside a submenu at a given row
+        {
+            using M = ui::MenuItem;
+            auto root = std::make_shared<M>(M::sub("root", {M::sub("A", {}), M::sub("Loty", {M::act("x", [] {}), M::act("y", [] {}), M::act("z", [] {})})}));
+            ui::Menu m;
+            m.openAt(root, {1, 2});
+            if (m.describe().find("Loty>[z]") == std::string::npos) std::printf("  [LOT] menu openAt: %s\n", m.describe().c_str()), problems++;
+            m.openAt(root, {1, 9});  // row past the end (last flight deleted): last row
+            if (m.describe().find("Loty>[z]") == std::string::npos) std::printf("  [LOT] menu openAt clamp: %s\n", m.describe().c_str()), problems++;
+        }
     }
     if (w.asp.zones().size() >= 2) {   // airspace exit screen: horizontal / up / down / outside, and the route check
         int nz = (int)w.asp.zones().size();
