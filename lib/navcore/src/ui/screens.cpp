@@ -2116,6 +2116,7 @@ void flightViewFit(FlightView& v) {
             v.z = z;
             v.cx = (x0 + x1) / 2;
             v.cy = (y0 + y1) / 2;
+            v.mapMoved = true;
             return;
         }
     }
@@ -2127,6 +2128,7 @@ void flightViewZoom(FlightView& v, int dir) {
     v.cx *= k;
     v.cy *= k;
     v.z = nz;
+    v.mapMoved = true;
 }
 
 FlightViewAction flightViewTap(FlightView& v, int x, int y) {
@@ -2158,6 +2160,7 @@ FlightViewAction flightViewTap(FlightView& v, int x, int y) {
     if (y >= FMY && y < FMY + FMH) {  // map: this point to the centre
         v.cx += x - (FMX + FMW / 2);
         v.cy += y - (FMY + FMH / 2);
+        v.mapMoved = true;
         return FV_REDRAW;
     }
     if (y >= FGY && !v.log->pts.empty()) {  // profile: select the point at this time
@@ -2200,9 +2203,20 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
             tp.push_back(q);
             last = q;
         }
-        // white halo under the black track: readable over the map lines
-        c.polyline(tp.data(), (int)tp.size(), WHITE, 13);
-        c.polyline(tp.data(), (int)tp.size(), BLACK, 5);
+        // track: double line, hollow inside (roads are solid black) with direction arrows every 60 px
+        const int n = (int)tp.size();
+        c.polyline(tp.data(), n, WHITE, 17);
+        c.polyline(tp.data(), n, BLACK, 11);
+        c.polyline(tp.data(), n, WHITE, 5);
+        double acc = 0;
+        for (int i = 1; i < n; i++) {
+            acc += std::hypot(tp[i].x - tp[i - 1].x, tp[i].y - tp[i - 1].y);
+            if (acc >= 60) {
+                acc = 0;
+                float ang = (float)(std::atan2(tp[i].x - tp[i - 1].x, -(tp[i].y - tp[i - 1].y)) * 180 / nav::kPi);
+                c.arrow(tp[i].x, tp[i].y, 26, ang, BLACK);
+            }
+        }
     }
     Pt t0 = to(l.pts.front().lat, l.pts.front().lon), t1 = to(l.pts.back().lat, l.pts.back().lon);
     c.fillCircle(t0.x, t0.y, 13, WHITE);

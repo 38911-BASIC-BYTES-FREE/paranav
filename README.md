@@ -160,7 +160,7 @@ Without an answer the flight goes on. If you still do not move, the flight ends 
 ### Saved flights
 **Menu → Saved flights** – flights on the card (IGC files in `logs/`, newest first: date, takeoff time, airtime). The chosen flight opens on a screen similar to XContest (after landing; the list does not open in flight):
 * **flight data on the left**: airtime, track length, average speed, max gain and the maximum values – altitude, distance from takeoff, climb and sink (over 10 s), speed,
-* **the track on the background map** from the card (white where there is no map); dot – takeoff, square – landing. **+ / –** (or KEY / BOOT short) – zoom in / out, **ALL** – whole flight, **tap the map** to move that point to the centre,
+* **the track on the background map** from the card (white where there is no map); the track is a hollow double line with arrows in the flying direction (roads are solid black), dot – takeoff, square – landing. Every change of the map view does a full e-paper refresh (no ghost of the previous view). **+ / –** (or KEY / BOOT short) – zoom in / out, **ALL** – whole flight, **tap the map** to move that point to the centre,
 * **altitude profile** at the bottom (hatched – ground, with `.hgt` files). **Tap the profile** to select a moment: a ring on the map and, below the profile, time, altitude, height above ground, vario and speed,
 * **DELETE** (or hold BOOT) – after a confirmation the IGC and GPX files are removed; **CLOSE** (or hold KEY) – back.
 

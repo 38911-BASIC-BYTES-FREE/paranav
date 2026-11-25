@@ -1773,7 +1773,10 @@ void loop() {
         bool full;
         if (view != lastView && lastView >= 0) full = true;
         else if (view == 1 || view == 2 || view == 4) full = quickInView >= 20;
-        else if (view == 8) full = quickInView >= 5;  // flight viewer: whole map changes, ghosting builds up fast
+        else if (view == 8) {  // flight viewer: a new map view = full refresh (no ghost of the old one); point on the profile = quick
+            full = flightView.mapMoved || quickInView >= 5;
+            flightView.mapMoved = false;
+        }
         else if (view == 5) full = quickInView >= 10;
         else full = settings.fullRefreshS > 0 && now - lastFull > (uint32_t)settings.fullRefreshS * 1000;
         uint32_t t0 = millis();

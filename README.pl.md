@@ -160,7 +160,7 @@ Bez odpowiedzi lot trwa dalej. Jeśli bezruch trwa nadal, lot kończy się sam *
 ### Zapisane loty
 **Menu → Zapisane loty** – lista lotów z karty (pliki IGC z `logs/`, najnowsze na górze: data, godzina startu, czas lotu). Wybrany lot otwiera się na ekranie podobnym do XContest (po lądowaniu; w locie lista się nie otwiera):
 * **po lewej dane lotu**: czas lotu, długość śladu, średnia prędkość, przewyższenie oraz wartości maksymalne – wysokość, odległość od startu, wznoszenie i opadanie (z 10 s), prędkość,
-* **mapa ze śladem** na mapie podkładowej z karty (białe tło tam, gdzie mapy nie ma); kropka – start, kwadrat – lądowanie. **+ / –** (albo KLAWISZ / BOOT krótko) – przybliż / oddal, **CAŁY** – cały lot, **dotyk mapy** przesuwa ten punkt na środek,
+* **mapa ze śladem** na mapie podkładowej z karty (białe tło tam, gdzie mapy nie ma); ślad to podwójna linia z pustym środkiem i strzałkami kierunku lotu (drogi są pełne, czarne), kropka – start, kwadrat – lądowanie. Każda zmiana widoku mapy robi pełne odświeżenie e-papieru (bez „cieni” poprzedniego widoku). **+ / –** (albo KLAWISZ / BOOT krótko) – przybliż / oddal, **CAŁY** – cały lot, **dotyk mapy** przesuwa ten punkt na środek,
 * **profil wysokości** na dole (kreskowanie – teren, jeśli są pliki `.hgt`). **Dotyk profilu** zaznacza chwilę lotu: kółko na mapie, a pod profilem godzina, wysokość, wysokość nad terenem, vario i prędkość,
 * **USUŃ** (albo przytrzymaj BOOT) – po potwierdzeniu znikają pliki IGC i GPX; **ZAMKNIJ** (albo przytrzymaj KLAWISZ) – powrót.
 

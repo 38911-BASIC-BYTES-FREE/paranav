@@ -123,6 +123,7 @@ struct FlightView {
     double cx = 0, cy = 0;  // view centre, global pixels at zoom z
     int cursor = -1;        // selected point (index into log->pts), -1 = none
     bool askDelete = false;
+    bool mapMoved = false;  // set by zoom / move / fit: the whole map changed (full e-paper refresh)
 };
 enum FlightViewAction { FV_NONE, FV_REDRAW, FV_CLOSE, FV_DELETE };
 void flightViewFit(FlightView& v);                 // whole flight in the map window
