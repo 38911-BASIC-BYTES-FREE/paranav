@@ -2281,8 +2281,13 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
         c.polyline(tp.data(), n, WHITE, 17);
         c.polyline(tp.data(), n, BLACK, 11);
         c.polyline(tp.data(), n, WHITE, 5);
+        // arrows only when the track is big enough on the screen (zoomed out, a small flight would be
+        // all arrows): the track's extent at least 200 px
+        int bx0 = 1 << 30, by0 = 1 << 30, bx1 = -(1 << 30), by1 = -(1 << 30);
+        for (const Pt& q : tp) bx0 = std::min(bx0, q.x), bx1 = std::max(bx1, q.x), by0 = std::min(by0, q.y), by1 = std::max(by1, q.y);
+        const bool arrows = n > 1 && std::max(bx1 - bx0, by1 - by0) >= 200;
         double acc = 0;
-        for (int i = 1; i < n; i++) {
+        for (int i = 1; i < n && arrows; i++) {
             acc += std::hypot(tp[i].x - tp[i - 1].x, tp[i].y - tp[i - 1].y);
             if (acc >= 60) {
                 acc = 0;
