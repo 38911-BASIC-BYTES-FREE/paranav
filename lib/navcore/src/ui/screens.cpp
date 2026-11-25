@@ -2257,13 +2257,15 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
         const int gx0 = FMX + 8, gx1 = W - 8, gw = gx1 - gx0;
         std::vector<int16_t> alt(gw, INT16_MIN), gnd(gw, INT16_MIN);
         size_t j = 0;
+        const int gn = (int)l.ground.size();
         for (int x = 0; x < gw; x++) {
             int t = (int)((int64_t)x * std::max(1, st.durationS) / std::max(1, gw - 1));
             while (j + 1 < l.pts.size() && l.pts[j + 1].t <= t) j++;
             alt[x] = l.pts[j].alt;
-            if (u.terrain) {
-                float g = u.terrain->elevation(l.pts[j].lat, l.pts[j].lon);
-                if (!std::isnan(g)) gnd[x] = (int16_t)std::lround(g);
+            // terrain: precomputed by computeGround() (never read from the card while drawing)
+            if (gn > 1) {
+                int16_t g = l.ground[std::min(gn - 1, (int)((int64_t)x * (gn - 1) / std::max(1, gw - 1)))];
+                if (g != nav::FlightLog::kNoGround) gnd[x] = g;
             }
         }
         float lo = st.minAlt, hi = st.maxAlt;
@@ -2328,7 +2330,12 @@ void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
             c.line(x, FGT, x, FGB, BLACK, 2, 5);
             float va, kmh;
             fvRates(l, v.cursor, va, kmh);
-            float g = u.terrain ? u.terrain->elevation(p.lat, p.lon) : NAN;
+            float g = NAN;  // terrain at this moment (precomputed profile)
+            if (l.ground.size() > 1) {
+                int gi = (int)((int64_t)p.t * ((int)l.ground.size() - 1) / std::max(1, st.durationS));
+                int16_t gv = l.ground[std::max(0, std::min((int)l.ground.size() - 1, gi))];
+                if (gv != nav::FlightLog::kNoGround) g = gv;
+            }
             std::string agl;
             if (!std::isnan(g)) {
                 std::snprintf(b, sizeof b, TR("  ·  %d m n.t.", "  ·  %d m AGL"), (int)std::lround(p.alt - g));

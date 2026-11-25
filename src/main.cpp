@@ -830,12 +830,15 @@ static void openFlight(const std::string& path, const std::string& name) {
         return;
     }
     crumb(TR("lot: otwieram", "flight: opening"));
+    showMessage(TR("Wczytuję lot…", "Loading the flight…"), name.c_str(), 0);
     std::string err;
     viewedFlight = nav::FlightLog();
     if (!nav::loadFlight(path, viewedFlight, 6000, &err)) {
         showMessage(TR("Nie mogę odczytać lotu", "Cannot read the flight"), name.c_str(), 2000);
         return;
     }
+    crumb(TR("lot: teren pod śladem", "flight: terrain under the track"));
+    nav::computeGround(viewedFlight, terrain);  // once: the profile must not read the card on every redraw
     flightView = ui::FlightView();
     flightView.log = &viewedFlight;
     flightView.title = name;
@@ -1302,7 +1305,8 @@ static void render(bool full) {
     {
         char b[96];
         snprintf(b, sizeof b, "%s%s%s", TR("rysowanie: ", "drawing: "),
-                 menu.isOpen() ? menu.describe().c_str() : ui::screenName(screen), full ? TR(" (pełne)", " (full)") : "");
+                 menu.isOpen() ? menu.describe().c_str() : flightViewOpen ? TR("zapisany lot", "saved flight") : ui::screenName(screen),
+                 full ? TR(" (pełne)", " (full)") : "");
         diag::crumb(b);
     }
     ui::Canvas c(board::framebuffer());

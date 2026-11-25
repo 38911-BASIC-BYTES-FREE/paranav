@@ -272,6 +272,7 @@ static void render(World& w, const std::string& name) {
         st.distKm = ext ? 999.9f : 42.6f; st.maxDistKm = ext ? 499.9f : 10.f; st.takeoffAlt = 100;
         st.maxAlt = ext ? 8888 : 475; st.minAlt = 100; st.maxClimb = ext ? 19.9f : 3.1f; st.maxSink = ext ? -19.9f : -2.4f;
         st.maxSpeedKmh = ext ? 199 : 74; st.avgSpeedKmh = ext ? 188 : 32;
+        computeGround(fl, w.terr);
         ui::FlightView fv;
         fv.log = &fl;
         fv.title = ext ? "2026-12-31-XPN-NAV-99-bardzo-dluga-nazwa-pliku.igc" : "2026-12-31-XPN-NAV-01.igc";

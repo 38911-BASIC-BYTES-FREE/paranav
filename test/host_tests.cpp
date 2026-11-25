@@ -338,6 +338,23 @@ static void testFlightLog() {
     if (g) std::fclose(g);
     CHECK(listFlights("/tmp/pn_flights").size() == 1);
     CHECK(!deleteFlight("/tmp/pn_flights/none.igc"));
+    // terrain under the track, computed once (constant 123 m tile at N20E020, nothing elsewhere)
+    {
+        CHECK(std::system("mkdir -p /tmp/pn_terr") == 0);
+        FILE* h = std::fopen("/tmp/pn_terr/N20E020.hgt", "wb");
+        std::vector<uint8_t> row(1201 * 2);
+        for (int c = 0; c < 1201; c++) row[2 * c] = 0, row[2 * c + 1] = 123;
+        for (int r = 0; r < 1201; r++) std::fwrite(row.data(), 1, row.size(), h);
+        std::fclose(h);
+        Terrain ter;
+        ter.setDir("/tmp/pn_terr");
+        FlightLog g;
+        g.pts = {{0, 20.5f, 20.5f, 500}, {100, 20.6f, 20.6f, 600}, {200, 21.5f, 20.6f, 600}};
+        g.st.durationS = 200;
+        computeGround(g, ter);
+        CHECK((int)g.ground.size() == FlightLog::kGroundN);
+        CHECK(g.ground.front() == 123 && g.ground[FlightLog::kGroundN / 2] == 123 && g.ground.back() == FlightLog::kNoGround);
+    }
 }
 
 static void testLoggerAndCup() {

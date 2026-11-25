@@ -41,7 +41,16 @@ struct FlightLog {
     std::vector<FlightPoint> pts;  // thinned to at most maxPoints
     FlightStats st;
     double minLat = 0, maxLat = 0, minLon = 0, maxLon = 0;
+    // terrain under the track: kGroundN samples evenly in time (kNoGround = no terrain data); filled
+    // once by computeGround() - reading the .hgt files on every redraw is far too slow on the SD card
+    static constexpr int kGroundN = 720;
+    static constexpr int16_t kNoGround = -32768;
+    std::vector<int16_t> ground;
 };
+
+class Terrain;
+// Fills log.ground (yields to the watchdog while reading the terrain files).
+void computeGround(FlightLog& log, Terrain& terrain);
 
 // *.igc files in dir, newest first (by date, then start time, then name). At most maxFiles.
 std::vector<FlightFileInfo> listFlights(const std::string& dir, size_t maxFiles = 100);

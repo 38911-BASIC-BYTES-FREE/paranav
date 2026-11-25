@@ -10,6 +10,8 @@
 #include <cstring>
 
 #include "geo.h"
+#include "terrain.h"
+#include "yield.h"
 
 namespace nav {
 
@@ -119,6 +121,7 @@ std::vector<FlightFileInfo> listFlights(const std::string& dir, size_t maxFiles)
     std::sort(names.begin(), names.end(), [](const std::string& a, const std::string& b) { return a > b; });
     if (names.size() > maxFiles) names.resize(maxFiles);
     for (auto& n : names) {
+        maybeYield(1);
         FlightFileInfo fi;
         if (flightInfo(dir + "/" + n, fi)) v.push_back(fi);
     }
@@ -181,6 +184,7 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
     FlightStats& s = out.st;
     int lastT = 0;
     while (std::fgets(line, sizeof line, f)) {
+        maybeYield(300);  // long files: let the watchdog breathe
         if (!parseIgcB(line, fx) || !fx.valid) continue;
         if (prevSec >= 0 && fx.sec < prevSec - 3600) dayAdd += 86400;  // past midnight UTC
         prevSec = fx.sec;
@@ -244,6 +248,20 @@ bool loadFlight(const std::string& path, FlightLog& out, size_t maxPoints, std::
     s.durationS = lastT;
     s.avgSpeedKmh = lastT > 0 ? s.distKm / (lastT / 3600.f) : 0;
     return true;
+}
+
+void computeGround(FlightLog& log, Terrain& terrain) {
+    log.ground.assign(FlightLog::kGroundN, FlightLog::kNoGround);
+    if (log.pts.empty()) return;
+    int dur = std::max(1, log.st.durationS);
+    size_t j = 0;
+    for (int i = 0; i < FlightLog::kGroundN; i++) {
+        int t = (int)((int64_t)i * dur / (FlightLog::kGroundN - 1));
+        while (j + 1 < log.pts.size() && log.pts[j + 1].t <= t) j++;
+        float g = terrain.elevation(log.pts[j].lat, log.pts[j].lon);
+        if (!std::isnan(g)) log.ground[i] = (int16_t)std::lround(std::max(-500.f, std::min(9000.f, g)));
+        maybeYield(10);
+    }
 }
 
 bool deleteFlight(const std::string& igcPath) {

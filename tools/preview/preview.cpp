@@ -333,6 +333,7 @@ int main(int argc, char** argv) {
         auto files = listFlights("/tmp/pn_preview_logs");
         FlightLog fl;
         if (!files.empty() && loadFlight(files[0].path, fl)) {
+            computeGround(fl, terr);
             ui::FlightView fv;
             fv.log = &fl;
             fv.title = files[0].name;
