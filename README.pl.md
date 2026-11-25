@@ -28,7 +28,7 @@ ParaNav to komputer lotu do motoparalotni, zbudowany na gotowej płytce z dużym
 **Przed lotem i po locie:**
 * **trasy planujesz w telefonie** (aplikacja na Androida, mapa OpenTopoMap ze strefami) i wysyłasz przez Bluetooth – ParaNav od razu sprawdza, czy trasa nie przecina stref,
 * **strefy, punkty i mapy** wgrywasz z telefonu, czytnikiem kart albo kablem USB (karta jako dysk w komputerze),
-* **zapis lotu** IGC i GPX zaczyna się i kończy sam; po lądowaniu – podsumowanie lotu,
+* **zapis lotu** IGC i GPX zaczyna się i kończy sam; po lądowaniu – podsumowanie lotu; **zapisane loty** można przeglądać na mapie z profilem wysokości i usuwać,
 * **ładowanie** – po podłączeniu USB urządzenie pyta: nawigacja, ładowanie czy pliki.
 
 **Sprzęt:** LilyGO T5 E-Paper S3 Pro (ESP32-S3, ekran 4,7″ 960×540, GPS, radio LoRa, bateria) + barometr MS5611 za kilkanaście złotych albo BlueFlyVario. Interfejs po polsku lub angielsku, pomoc wbudowana w menu.
@@ -156,6 +156,19 @@ Lot nie kończy się już sam po minucie bezruchu – przy locie pod silny wiatr
 Bez odpowiedzi lot trwa dalej. Jeśli bezruch trwa nadal, lot kończy się sam **4 min** po pojawieniu się pytania (licznik w dolnej linii); ruszenie się (powyżej 8 km/h albo vario ponad ±1 m/s) zamyka pytanie. Gdy jesteś **wyżej niż 50 m nad terenem** (wymaga plików terenu), pytanie się nie pokazuje. Czas lotu w podsumowaniu kończy się w chwili zatrzymania, a nie odpowiedzi.
 
 <p align="center"><img src="docs/screens/pl/U_pytanie_ladowanie.png" width="60%" alt="Pytanie LĄDOWANIE?"><br><sub>Pytanie LĄDOWANIE? na ekranie LOT</sub></p>
+
+### Zapisane loty
+**Menu → Zapisane loty** – lista lotów z karty (pliki IGC z `logs/`, najnowsze na górze: data, godzina startu, czas lotu). Wybrany lot otwiera się na ekranie podobnym do XContest (po lądowaniu; w locie lista się nie otwiera):
+* **po lewej dane lotu**: czas lotu, długość śladu, średnia prędkość, przewyższenie oraz wartości maksymalne – wysokość, odległość od startu, wznoszenie i opadanie (z 10 s), prędkość,
+* **mapa ze śladem** na mapie podkładowej z karty (białe tło tam, gdzie mapy nie ma); kropka – start, kwadrat – lądowanie. **+ / –** (albo KLAWISZ / BOOT krótko) – przybliż / oddal, **CAŁY** – cały lot, **dotyk mapy** przesuwa ten punkt na środek,
+* **profil wysokości** na dole (kreskowanie – teren, jeśli są pliki `.hgt`). **Dotyk profilu** zaznacza chwilę lotu: kółko na mapie, a pod profilem godzina, wysokość, wysokość nad terenem, vario i prędkość,
+* **USUŃ** (albo przytrzymaj BOOT) – po potwierdzeniu znikają pliki IGC i GPX; **ZAMKNIJ** (albo przytrzymaj KLAWISZ) – powrót.
+
+Wysokość pochodzi z barometru wyrównanego do wysokości GPS (zapis IGC trzyma wysokość ciśnieniową QNE), bez barometru – z GPS. Statystyki liczone są ze wszystkich punktów, na mapę i profil trafia do 6000 punktów.
+
+| Lot z zaznaczonym punktem | Pytanie o usunięcie |
+|:---:|:---:|
+| <img src="docs/screens/pl/G_lot_punkt.png" width="100%" alt="Zapisany lot"> | <img src="docs/screens/pl/G_lot_usun.png" width="100%" alt="Usuwanie lotu"> |
 
 ### Wyjście ze strefy i kontrola trasy
 Gdy wlecisz w aktywną strefę (te same strefy, które dają alarm W STREFIE – klasy z listy ignorowanych i strefy nieaktywne wg AUP się nie liczą), alarm ma dwa przyciski:
@@ -299,6 +312,14 @@ Na mapę nakładane są: Twoja pozycja i kurs, ślad, START, linia do celu, punk
 
 Na **z12** maszty, wieże i kominy są pokazywane od 40 m wysokości (maszty telekomunikacyjne i flary zawsze), a ich skupiska jako jeden symbol z liczbą; dźwigi pojawiają się dopiero na z14. Od z13 mapa pokazuje wszystko jak w tabeli wyżej (poza dźwigami). Zmiana dotyczy generatora – żeby ją zobaczyć, wygeneruj mapę od nowa.
 
+**Bez sygnału GPS** (np. zaraz po włączeniu) TOPO pokazuje mapę z **ostatniej znanej pozycji** – zapamiętanej w pamięci urządzenia także po wyłączeniu (zapis przy pierwszym fixie, potem co 10 min po przemieszczeniu o ponad 1 km, przy lądowaniu i przy wyłączaniu). Czarny napis **BRAK SYGNAŁU GPS** i przerywane kółko zamiast strzałki przypominają, że to nie jest aktualna pozycja; strefy nie są wtedy rysowane.
+
+<p align="center"><img src="docs/screens/pl/T_topo_bez_gps.png" width="60%" alt="TOPO bez sygnału GPS"><br><sub>TOPO bez sygnału GPS – mapa z ostatniej znanej pozycji</sub></p>
+
+**Ekran wyłączenia** ma w tle mapę z karty wokół ostatniej pozycji (z11 – spokojny widok: miasta, główne drogi, woda), a bez map – czyste tło. E-papier zachowuje ten obraz bez zasilania.
+
+<p align="center"><img src="docs/screens/pl/D_power_off_map.png" width="60%" alt="Ekran wyłączenia z mapą w tle"><br><sub>Ekran wyłączenia z mapą w tle</sub></p>
+
 > Mapa z OSM jest pomocą orientacyjną, **nie mapą lotniczą** – linie energetyczne i przeszkody mogą być niekompletne.
 
 ### 1. Przygotowanie mapy
@@ -382,6 +403,11 @@ Po **3 awariach z rzędu**, każdej w ciągu 2 minut od startu, ParaNav uruchami
 ## Historia wersji
 
 Najnowsze na górze. Daty to dni, w których powstały paczki z kodem (2026). Numer firmware jest w `src/config.h`, aplikacji – w `android/app/build.gradle`. Od 0.5.8 gotowe pliki są w zakładce **Releases**.
+
+### Następna wersja (w przygotowaniu)
+* **Zapisane loty** (Menu → Zapisane loty): lista, podgląd lotu na mapie z danymi po lewej i profilem wysokości na dole (jak w XContest), przybliżanie i przesuwanie mapy, zaznaczanie punktu na profilu, usuwanie lotu (IGC + GPX).
+* **TOPO bez sygnału GPS**: mapa z ostatniej znanej pozycji (zapamiętanej po wyłączeniu), z napisem BRAK SYGNAŁU GPS, bez stref.
+* **Ekran wyłączenia** z mapą z karty w tle.
 
 ### 0.5.10 – 23.11
 * **Limit wysokości FL95** jako ustawienie (Menu → Alarmy → *Maks. wysokość FL*, `maxFl` w `config.ini`, 0 = bez limitu): wyjście ze strefy nie proponuje już wznoszenia ponad limit (np. nad strefę kończącą się na FL95), kontrola trasy nie liczy wysokości lotu powyżej limitu.

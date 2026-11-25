@@ -1,6 +1,7 @@
 // Screen renderers. Everything is drawn from a read-only UiContext snapshot,
 // so the same code runs on the device and in the desktop preview tool.
 #pragma once
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -12,6 +13,7 @@
 #include "../terrain.h"
 #include "../topo.h"
 #include "../fanet.h"
+#include "../flightlog.h"
 #include "../waypoints.h"
 #include "canvas.h"
 
@@ -87,6 +89,9 @@ struct UiContext {
     const nav::AlertManager* alerts = nullptr;
     const SysInfo* sys = nullptr;
     const nav::EscapeResult* escape = nullptr;  // airspace exit plan (escape screen)
+    // last known GPS position (also from before the last power-off): the TOPO screen shows the map
+    // there while waiting for a fix; NAN = unknown
+    double lastLat = NAN, lastLon = NAN;
 };
 
 void drawScreen(Canvas& c, ScreenId s, const UiContext& u);
@@ -106,7 +111,27 @@ void drawRouteCheck(Canvas& c, const UiContext& u, const std::string& routeName,
 void drawSummary(Canvas& c, const UiContext& u);
 void drawPowerHint(Canvas& c);
 void drawTransferBanner(Canvas& c, const UiContext& u);  // file upload from the phone in progress  // "keep holding to power off" overlay
-void drawPowerOff(Canvas& c, const char* line1, const char* line2);
+// topo != null: decorative map background around (lat, lon) - or the first map area's centre
+void drawPowerOff(Canvas& c, const char* line1, const char* line2, nav::TopoMap* topo = nullptr, double lat = NAN,
+                  double lon = NAN);
+
+// ---- saved flight viewer (Menu > Saved flights)
+struct FlightView {
+    const nav::FlightLog* log = nullptr;
+    std::string title;      // file name
+    int z = 12;             // map zoom (Web Mercator, 5..14; tiles only where the SD maps have them)
+    double cx = 0, cy = 0;  // view centre, global pixels at zoom z
+    int cursor = -1;        // selected point (index into log->pts), -1 = none
+    bool askDelete = false;
+};
+enum FlightViewAction { FV_NONE, FV_REDRAW, FV_CLOSE, FV_DELETE };
+void flightViewFit(FlightView& v);                 // whole flight in the map window
+void flightViewZoom(FlightView& v, int dir);       // +1 in, -1 out (keeps the centre)
+// Touch: buttons, map (re-centre on the touched point), profile (select a point). FV_DELETE only
+// from the confirmation card; the delete button opens that card (FV_REDRAW).
+FlightViewAction flightViewTap(FlightView& v, int x, int y);
+void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v);
+void drawFlightDeleteAsk(Canvas& c, const FlightView& v);  // part of drawFlightView (separate for the layout checker)
 void drawBoot(Canvas& c, const std::vector<std::string>& lines, const char* version);
 
 // Touch zones of the fuel screen buttons (for the input handler)

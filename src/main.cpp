@@ -13,6 +13,7 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <esp_core_dump.h>
+#include <Preferences.h>
 
 #include <algorithm>
 #include <cmath>
@@ -28,6 +29,7 @@
 #include "config.h"
 #include "diag.h"
 #include "flight.h"
+#include "flightlog.h"
 #include "gps.h"
 #include "logger.h"
 #include "ms5611.h"
@@ -106,6 +108,35 @@ struct RouteInfo {
 };
 static std::vector<RouteInfo> routeList;
 static void selectRoute(const std::string& path);
+
+// Last known GPS position, kept in flash (NVS) over power-off: the TOPO screen shows the map there
+// while waiting for a fix, the power-off screen uses it for its map background.
+static double lastLat = NAN, lastLon = NAN;
+static double savedLat = NAN, savedLon = NAN;
+static uint32_t lastPosSavedMs = 0;
+static void loadLastPos() {
+    Preferences p;
+    if (!p.begin("paranav", true)) return;
+    double la = p.getDouble("lat", NAN), lo = p.getDouble("lon", NAN);
+    p.end();
+    if (std::fabs(la) <= 90 && std::fabs(lo) <= 180) lastLat = savedLat = la, lastLon = savedLon = lo;
+}
+static void saveLastPos() {
+    if (std::isnan(lastLat) || (lastLat == savedLat && lastLon == savedLon)) return;
+    Preferences p;
+    if (!p.begin("paranav", false)) return;
+    p.putDouble("lat", lastLat);
+    p.putDouble("lon", lastLon);
+    p.end();
+    savedLat = lastLat;
+    savedLon = lastLon;
+    lastPosSavedMs = millis();
+}
+
+// Saved flight viewer (Menu > Saved flights)
+static bool flightViewOpen = false;
+static nav::FlightLog viewedFlight;
+static ui::FlightView flightView;
 
 static MS5611 baro;
 static GpsModule gps;
@@ -793,13 +824,55 @@ __attribute__((noinline)) static ui::MenuItem menuHelp() {
 // The menu is built on demand. Every sub-menu has its own (non-inlined) function so that the
 // temporaries do not pile up in one huge stack frame - one big function needed >7 KB of stack
 // and overflowed the 8 KB Arduino loop task (device reset on opening the menu).
+static void openFlight(const std::string& path, const std::string& name) {
+    if (fc.state().phase == Phase::Flying) {
+        showMessage(TR("Niedostępne w locie", "Not available in flight"), TR("loty przejrzysz po lądowaniu", "view the flights after landing"), 2000);
+        return;
+    }
+    crumb(TR("lot: otwieram", "flight: opening"));
+    std::string err;
+    viewedFlight = nav::FlightLog();
+    if (!nav::loadFlight(path, viewedFlight, 6000, &err)) {
+        showMessage(TR("Nie mogę odczytać lotu", "Cannot read the flight"), name.c_str(), 2000);
+        return;
+    }
+    flightView = ui::FlightView();
+    flightView.log = &viewedFlight;
+    flightView.title = name;
+    ui::flightViewFit(flightView);
+    flightViewOpen = true;
+}
+
+static ui::MenuItem menuFlights() {
+    using M = ui::MenuItem;
+    std::vector<M> list;
+    auto files = sys.sdOk ? nav::listFlights(PATH_LOGS, 60) : std::vector<nav::FlightFileInfo>();
+    for (const auto& f : files) {
+        char l[48], v[16];
+        int loc = f.startSec < 0 ? -1 : ((f.startSec + settings.tzOffsetMin * 60) % 86400 + 86400) % 86400;
+        if (loc >= 0) snprintf(l, sizeof l, "%02d.%02d.%04d  %02d:%02d", f.day, f.month, f.year, loc / 3600, (loc / 60) % 60);
+        else snprintf(l, sizeof l, "%s", f.name.c_str());
+        snprintf(v, sizeof v, "%d:%02d h", f.durationS / 3600, (f.durationS / 60) % 60);
+        std::string path = f.path, name = f.name, val = v;
+        M it = M::act(l, [path, name] { openFlight(path, name); }, true);
+        it.value = [val] { return val; };
+        list.push_back(std::move(it));
+    }
+    if (list.empty())
+        list.push_back(M::page(TR("Brak zapisanych lotów", "No saved flights"),
+                               TR("Loty zapisują się same w katalogu logs/ na karcie SD (pliki IGC i GPX), od startu do lądowania.",
+                                  "Flights are recorded automatically to logs/ on the SD card (IGC and GPX files), from takeoff to landing.")));
+    return M::sub(TR("Zapisane loty", "Saved flights"), std::move(list));
+}
+
 static std::shared_ptr<ui::MenuItem> buildMenu() {
     using M = ui::MenuItem;
     auto root = std::make_shared<M>();
     root->kind = M::Submenu;
     root->label = "root";
-    root->children.reserve(11);
+    root->children.reserve(12);
     root->children.push_back(menuLot());
+    root->children.push_back(menuFlights());
     root->children.push_back(menuFuel());
     root->children.push_back(menuAlti());
     root->children.push_back(menuNav());
@@ -891,6 +964,12 @@ static void onSecond(bool haveFix, const GpsFix& g, const BaroSnapshot& b) {
     if (haveFix) fc.update(g, b, up);
     else fc.updateNoGps(b, up);
     const NavState& n = fc.state();
+    if (n.fix) {
+        lastLat = n.lat;
+        lastLon = n.lon;
+        bool far = std::isnan(savedLat) || distanceM({savedLat, savedLon}, {lastLat, lastLon}) > 1000;
+        if (std::isnan(savedLat) || (far && millis() - lastPosSavedMs > 600000)) saveLastPos();
+    }
     // FANET: own position for the radio, evaluate traffic, follow a pilot chosen as target
     {
         fanet::OwnTx o;
@@ -964,6 +1043,7 @@ static void onSecond(bool haveFix, const GpsFix& g, const BaroSnapshot& b) {
         logger.add(p);
     }
     if (fc.landingEvent) {
+        saveLastPos();
         logger.stop();
         sys.recording = false;
         showSummary = true;
@@ -1091,6 +1171,36 @@ static bool handleEventImpl(const board::Event& e) {
         showSummary = false;
         return true;
     }
+    if (flightViewOpen && !menu.isOpen()) {
+        ui::FlightViewAction a = ui::FV_NONE;
+        if (flightView.askDelete) {  // KEY / left = cancel, BOOT / right = delete
+            if (e.type == Ev::KeyShort || e.type == Ev::KeyLong) flightView.askDelete = false;
+            else if (e.type == Ev::BootShort) a = ui::FV_DELETE, flightView.askDelete = false;
+            else if (e.type == Ev::Tap) a = ui::flightViewTap(flightView, e.x, e.y);
+        } else {
+            switch (e.type) {
+                case Ev::KeyShort: ui::flightViewZoom(flightView, +1); break;
+                case Ev::BootShort: ui::flightViewZoom(flightView, -1); break;
+                case Ev::KeyLong: a = ui::FV_CLOSE; break;
+                case Ev::BootLong: flightView.askDelete = true; break;
+                case Ev::Tap: a = ui::flightViewTap(flightView, e.x, e.y); break;
+                default: break;
+            }
+        }
+        if (a == ui::FV_DELETE) {
+            std::string name = flightView.title;
+            bool ok = nav::deleteFlight(viewedFlight.path);
+            crumb(ok ? TR("lot usunięty", "flight deleted") : TR("lot: błąd usuwania", "flight: delete failed"));
+            showMessage(ok ? TR("Lot usunięty", "Flight deleted") : TR("Nie udało się usunąć", "Could not delete"), name.c_str(), 1500);
+            a = ui::FV_CLOSE;
+        }
+        if (a == ui::FV_CLOSE) {
+            flightViewOpen = false;
+            viewedFlight = nav::FlightLog();  // free the points
+            flightView = ui::FlightView();
+        }
+        return true;
+    }
     if (menu.isOpen()) {
         switch (e.type) {
             case Ev::KeyShort: menu.handleKey(ui::Key::NextShort); break;
@@ -1211,6 +1321,8 @@ static void render(bool full) {
     u.topo = sys.sdOk ? &topo : nullptr;
     u.traffic = &traffic.list();
     u.topoView = &topoView;
+    u.lastLat = lastLat;
+    u.lastLon = lastLon;
     if (powerUi != PowerUi::Normal) {
         if (powerUi == PowerUi::Ask) {
             uint32_t el = millis() - askSinceMs;
@@ -1234,6 +1346,8 @@ static void render(bool full) {
         ui::drawRouteCheck(c, u, route.name, routeCheck);
     } else if (menu.isOpen()) {
         menu.draw(c);
+    } else if (flightViewOpen) {
+        ui::drawFlightView(c, u, flightView);
     } else if (showSummary) {
         ui::drawSummary(c, u);
     } else if (escapeMode) {
@@ -1279,9 +1393,13 @@ static void shutdownDevice() {
     logger.stop();  // closes IGC/GPX properly
     sys.recording = false;
     saveSettings();
+    saveLastPos();
     if (sys.sdOk) diag::noteShutdown(PATH_LOGS);
+    // the map tiles are read now, while the card is still mounted
+    ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"),
+                     sys.sdOk && !diag::boot().safeMode ? &topo : nullptr, lastLat, lastLon);
+    topo.close();
     SD.end();
-    ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"));
     board::displayUpdate(true);  // e-paper keeps this image without power
     board::powerOff();
     // if we get here the power-off failed
@@ -1304,6 +1422,7 @@ void setup() {
     // SD first so config.ini (VCOM, flip) is known before the display starts
     sys.sdOk = board::sdInit();
     if (sys.sdOk) settings.load(PATH_CONFIG);
+    loadLastPos();
     applyLanguage();
     usbdisk::init();  // USB drive registered without media (shown only in "Tryb USB")
 #if !ARDUINO_USB_MODE
@@ -1604,13 +1723,14 @@ void loop() {
                      : menu.isOpen()                ? 1
                      : showSummary                  ? 2
                      : escapeMode                   ? 7
+                     : flightViewOpen               ? 8
                                                     : 0;
     static int lastView = -1, quickInView = 0;
     if (view == 3 && lastView != 3 && lastView >= 0) {  // USB drive: already drawn by usbEnter()
         lastView = 3;
         dirty = userDirty = false;
     }
-    if (view == 1 || view == 2 || view == 6) {
+    if (view == 1 || view == 2 || view == 6 || view == 8) {
         if (!userDirty && view == lastView) dirty = false;
     }
     if (view == 4 && !askAuto && !userDirty && view == lastView) dirty = false;  // no countdown: static
@@ -1627,6 +1747,7 @@ void loop() {
         bool full;
         if (view != lastView && lastView >= 0) full = true;
         else if (view == 1 || view == 2 || view == 4) full = quickInView >= 20;
+        else if (view == 8) full = quickInView >= 5;  // flight viewer: whole map changes, ghosting builds up fast
         else if (view == 5) full = quickInView >= 10;
         else full = settings.fullRefreshS > 0 && now - lastFull > (uint32_t)settings.fullRefreshS * 1000;
         uint32_t t0 = millis();

@@ -16,6 +16,8 @@
 #include "topo.h"
 #include "i18n.h"
 #include "fanet.h"
+#include "flightlog.h"
+#include "logger.h"
 #include "ui/canvas.h"
 #include "ui/menu.h"
 #include "ui/screens.h"
@@ -272,6 +274,84 @@ int main(int argc, char** argv) {
     savePgm(out + "/C_power_hint.pgm");
     ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"));
     savePgm(out + "/D_power_off.pgm");
+    // Screens around a background map (PARANAV_DEMO_MAPS=<out>/maps from make_tiles.py; the flight is
+    // made up around the first map area): power-off background, TOPO while waiting for GPS, saved
+    // flight viewer with a 1:20 h flight
+    TopoMap demo;
+    if (const char* dm = std::getenv("PARANAV_DEMO_MAPS")) {
+        demo.setDir(dm);
+        demo.scan();
+    }
+    if (!demo.areas().empty()) {
+        const TopoArea& A = demo.areas()[0];
+        u.topo = &demo;
+        const double la0 = A.lat0 - 0.03, lo0 = A.lon0 - 0.09;
+        ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"), &demo, la0, lo0);
+        savePgm(out + "/D_power_off_map.pgm");
+        NavState ns = n;
+        ns.fix = false;
+        ns.gsKmh = 0;
+        ui::UiContext u2 = u;
+        u2.nav = &ns;
+        u2.fc = nullptr;
+        u2.lastLat = la0;
+        u2.lastLon = lo0;
+        TopoView tv2;
+        u2.topoView = &tv2;
+        set.topoZoom = 12;
+        ui::drawScreen(c, ui::SCR_TOPO, u2);
+        savePgm(out + "/T_topo_bez_gps.pgm");
+        set.topoZoom = 13;
+        // flight: loop east and back, thermals, 80 m takeoff
+        (void)!std::system("rm -rf /tmp/pn_preview_logs && mkdir -p /tmp/pn_preview_logs");
+        TrackLogger lg;
+        const int T = 4816;
+        auto at = [&](int t, LogPoint& p) {
+            double uu = (double)t / T;
+            double e = 9.5 * std::sin(2 * kPi * uu) + 1.6 * std::sin(6 * kPi * uu) + 0.06 * std::sin(t / 47.0);
+            double nn = -5.0 * (1 - std::cos(2 * kPi * uu)) / 2 + 1.8 * std::sin(4 * kPi * uu) + 0.05 * std::cos(t / 39.0);
+            p.lat = la0 + nn / 111.195;
+            p.lon = lo0 + e / (111.195 * std::cos(la0 * kDeg2Rad));
+            // climb out over 10 min, thermals, glide down over the last 9 min (continuous)
+            float k = std::min(1.f, std::min(t / 600.f, (T - t) / 540.f));
+            float a = 80 + (260 + 110 * (float)std::sin(2 * kPi * t / 900.0) + 40 * (float)std::sin(2 * kPi * t / 230.0)) * k;
+            p.gpsAlt = a;
+            p.pressAlt = a - 60;
+            int s = 13 * 3600 + 5 * 60 + t;
+            p.hour = (uint8_t)(s / 3600);
+            p.minute = (uint8_t)((s / 60) % 60);
+            p.second = (uint8_t)(s % 60);
+        };
+        LogPoint lp{2026, 10, 17, 13, 5, 0, la0, lo0, true, 0, 0, 0};
+        at(0, lp);
+        lg.start("/tmp/pn_preview_logs", lp, "P", "G", "ID", "GPS", PARANAV_VERSION);
+        for (int t = 0; t <= T; t++) {
+            at(t, lp);
+            lg.add(lp);
+        }
+        lg.stop();
+        auto files = listFlights("/tmp/pn_preview_logs");
+        FlightLog fl;
+        if (!files.empty() && loadFlight(files[0].path, fl)) {
+            ui::FlightView fv;
+            fv.log = &fl;
+            fv.title = files[0].name;
+            ui::flightViewFit(fv);
+            ui::UiContext u3 = u;
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot.pgm");
+            fv.cursor = (int)fl.pts.size() * 2 / 5;
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot_punkt.pgm");
+            ui::flightViewZoom(fv, +1);
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot_zoom.pgm");
+            fv.askDelete = true;
+            ui::drawFlightView(c, u3, fv);
+            savePgm(out + "/G_lot_usun.pgm");
+        }
+        u.topo = &topo;
+    }
     ui::drawBoot(c, {TR("[OK] Wyświetlacz", "[OK] Display"), TR("[OK] Barometr MS5611", "[OK] Barometer MS5611"), TR("[OK] Karta SD", "[OK] SD card"), TR("[OK] Strefy: 4", "[OK] Airspace: 4"), TR("[..] GPS: szukam satelitów", "[..] GPS: searching for satellites")}, PARANAV_VERSION);
     savePgm(out + "/B_boot.pgm");
     return 0;

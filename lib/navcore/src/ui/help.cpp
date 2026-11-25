@@ -84,7 +84,23 @@ static const std::vector<HelpTopic> kTopicsPl = {
      "(strzałka – kierunek, północ u góry).\n"
      "– Na dole skala i poziom mapy z10 (ok. 90 km szerokości ekranu) … z14 (ok. 6 km). Dotyk górnej połowy mapy "
      "– przybliż, dolnej – oddal. Kropki w regularnej siatce = brak mapy dla tego miejsca.\n"
+     "– Bez sygnału GPS mapa pokazuje okolicę ostatniej znanej pozycji (zapamiętanej także po wyłączeniu), z "
+     "czarnym napisem BRAK SYGNAŁU GPS i przerywanym kółkiem zamiast strzałki. To nie jest aktualna pozycja; strefy "
+     "nie są wtedy rysowane.\n"
      "Mapa jest pomocą orientacyjną, nie mapą lotniczą – przeszkody mogą być niekompletne."},
+    {"Zapisane loty",
+     "Menu > Zapisane loty: lista lotów z karty SD (pliki IGC w katalogu logs/), najnowsze na górze – data, godzina "
+     "startu i czas lotu. Wybierz lot, aby go obejrzeć (po lądowaniu; w locie lista się nie otwiera).\n"
+     "– Po lewej dane lotu: czas, długość śladu, średnia prędkość, przewyższenie i wartości maksymalne (wysokość, "
+     "odległość od startu, wznoszenie i opadanie z 10 s, prędkość).\n"
+     "– Mapa: ślad na mapie z karty (białe tło, gdzie mapy nie ma). Kropka – start, kwadrat – lądowanie. "
+     "Przyciski + i – albo KLAWISZ / BOOT krótko: przybliż / oddal; CAŁY – cały lot. Dotyk mapy przesuwa ten punkt "
+     "na środek.\n"
+     "– Na dole profil wysokości (kreskowanie – teren, gdy są pliki terenu). Dotyk profilu zaznacza chwilę lotu: "
+     "kółko na mapie i pod profilem godzina, wysokość, wysokość nad terenem, vario i prędkość.\n"
+     "– USUŃ (albo przytrzymaj BOOT) – pytanie, potem usunięcie plików IGC i GPX z karty. ZAMKNIJ (albo "
+     "przytrzymaj KLAWISZ) – powrót.\n"
+     "Wysokość pochodzi z barometru wyrównanego do GPS; bez barometru – z GPS."},
 
     {"FANET – inni piloci",
      "Wbudowane radio LoRa 868 MHz nadaje Twoją pozycję w otwartym systemie FANET i odbiera innych pilotów. "
@@ -347,7 +363,22 @@ static const std::vector<HelpTopic> kTopicsEn = {
      "nearest airspace (arrow – direction, north up).\n"
      "– At the bottom: scale and map level z10 (screen ~90 km wide) … z14 (~6 km). Tap the upper half of the map "
      "to zoom in, the lower half to zoom out. Dots in a regular grid = no map for this place.\n"
+     "– Without a GPS signal the map shows the area of the last known position (kept also over power-off), with "
+     "a black NO GPS SIGNAL banner and a dashed ring instead of the arrow. It is not the current position; airspace "
+     "is not drawn then.\n"
      "The map is an orientation aid, not an aeronautical chart – obstacles may be incomplete."},
+    {"Saved flights",
+     "Menu > Saved flights: flights on the SD card (IGC files in logs/), newest first – date, takeoff time and "
+     "airtime. Choose one to view it (after landing; the list does not open in flight).\n"
+     "– On the left: airtime, track length, average speed, max gain and the maximum values (altitude, distance "
+     "from takeoff, climb and sink over 10 s, speed).\n"
+     "– Map: the track over the map from the card (white where there is no map). Dot – takeoff, square – landing. "
+     "Buttons + and – or KEY / BOOT short: zoom in / out; ALL – whole flight. Tap the map to move that point to the "
+     "centre.\n"
+     "– At the bottom: altitude profile (hatched – ground, with terrain files). Tap the profile to select a moment: "
+     "a ring on the map and, below the profile, time, altitude, height above ground, vario and speed.\n"
+     "– DELETE (or hold BOOT) – a question, then the IGC and GPX files are removed. CLOSE (or hold KEY) – back.\n"
+     "Altitude comes from the barometer levelled to GPS; without a barometer from GPS."},
 
     {"FANET – other pilots",
      "The built-in 868 MHz LoRa radio transmits your position on the open FANET network and receives other pilots. "

@@ -13,6 +13,7 @@
 #include "flight.h"
 #include "geo.h"
 #include "logger.h"
+#include "flightlog.h"
 #include "nmea.h"
 #include "settings.h"
 #include "terrain.h"
@@ -260,6 +261,83 @@ static void testAirspace() {
     hits = db.check(q2);
     for (auto& h : hits)
         if (h.idx == 1) CHECK(h.level == 0 && !h.active);
+}
+
+// saved flights: list (newest first), read with statistics, delete IGC + GPX
+static void testFlightLog() {
+    CHECK(std::system("rm -rf /tmp/pn_flights && mkdir -p /tmp/pn_flights") == 0);
+    auto write = [](int y, int mo, int d, int h, int mi, int secs, auto&& fn) {
+        TrackLogger lg;
+        LogPoint p{(uint16_t)y, (uint8_t)mo, (uint8_t)d, (uint8_t)h, (uint8_t)mi, 0, 54.0, 18.0, true, 0, 0, 0};
+        fn(0, p);
+        CHECK(lg.start("/tmp/pn_flights", p, "P", "G", "ID", "GPS", "test"));
+        for (int i = 0; i <= secs; i++) {
+            int t = h * 3600 + mi * 60 + i;
+            p.hour = (uint8_t)((t / 3600) % 24);
+            p.minute = (uint8_t)((t / 60) % 60);
+            p.second = (uint8_t)(t % 60);
+            fn(i, p);
+            lg.add(p);
+        }
+        lg.stop();
+    };
+    // flight 1: 10 min east at 10 m/s, climb 2 m/s for 5 min then sink 1 m/s; pressure altitude 50 m below GPS
+    write(2026, 11, 16, 9, 5, 600, [](int i, LogPoint& p) {
+        p.lat = 54.0;
+        p.lon = 18.0 + i * 10.0 / (111195.0 * std::cos(54.0 * kDeg2Rad));
+        float a = 100.f + (i <= 300 ? 2.f * i : 600.f - (i - 300));
+        p.gpsAlt = a;
+        p.pressAlt = a - 50.f;
+    });
+    // flight 2: across midnight UTC (23:59 -> 00:01), standing still, GPS altitude only
+    write(2026, 11, 20, 23, 59, 120, [](int, LogPoint& p) {
+        p.lat = 54.1;
+        p.lon = 18.1;
+        p.gpsAlt = 200;
+        p.pressAlt = 0;
+    });
+    auto list = listFlights("/tmp/pn_flights");
+    CHECK(list.size() == 2);
+    CHECK(list[0].day == 20 && list[0].month == 11 && list[0].year == 2026 && list[0].durationS == 120);
+    CHECK(list[1].day == 16 && list[1].startSec == 9 * 3600 + 5 * 60 && list[1].durationS == 600);
+    FlightLog fl;
+    CHECK(loadFlight(list[1].path, fl, 100));
+    CHECK(fl.baro && fl.pts.size() <= 102 && fl.pts.size() >= 60);
+    CHECK(fl.pts.front().t == 0 && fl.pts.back().t == 600);
+    CHECK(fl.st.durationS == 600);
+    NEAR(fl.st.takeoffAlt, 100, 1);
+    NEAR(fl.st.maxAlt, 700, 1);
+    NEAR(fl.st.maxClimb, 2.0, 0.05);
+    NEAR(fl.st.maxSink, -1.0, 0.05);
+    NEAR(fl.st.distKm, 6.0, 0.05);
+    NEAR(fl.st.maxDistKm, 6.0, 0.05);
+    NEAR(fl.st.maxSpeedKmh, 36.0, 0.5);
+    NEAR(fl.st.avgSpeedKmh, 36.0, 0.5);
+    CHECK(fl.minLon < 18.0001 && fl.maxLon > 18.09);
+    FlightLog f2;
+    CHECK(loadFlight(list[0].path, f2));
+    CHECK(!f2.baro && f2.st.durationS == 120 && f2.pts.back().t == 120);
+    NEAR(f2.pts[5].alt, 200, 0.5);
+    // B record parser: negative pressure altitude, southern / western hemisphere
+    IgcFix fx;
+    CHECK(parseIgcB("B0905070030000S00015000WA-001200530", fx));
+    CHECK(fx.valid && fx.pressAlt == -12 && fx.gpsAlt == 530 && fx.lat < 0 && fx.lon < 0);
+    NEAR(fx.lat, -0.5, 1e-9);
+    CHECK(!parseIgcB("B09050", fx) && !parseIgcB("HFDTEDATE:161126,01", fx));
+    int y = 0, m = 0, d = 0;
+    CHECK(parseIgcDate("HFDTEDATE:161126,01", y, m, d) && y == 2026 && m == 11 && d == 16);
+    CHECK(parseIgcDate("HFDTE161126", y, m, d) && d == 16);
+    // delete: IGC and GPX gone, the other flight stays
+    std::string gpx = list[1].path.substr(0, list[1].path.size() - 4) + ".gpx";
+    FILE* g = std::fopen(gpx.c_str(), "r");
+    CHECK(g != nullptr);
+    if (g) std::fclose(g);
+    CHECK(deleteFlight(list[1].path));
+    g = std::fopen(gpx.c_str(), "r");
+    CHECK(g == nullptr);
+    if (g) std::fclose(g);
+    CHECK(listFlights("/tmp/pn_flights").size() == 1);
+    CHECK(!deleteFlight("/tmp/pn_flights/none.igc"));
 }
 
 static void testLoggerAndCup() {
@@ -948,6 +1026,7 @@ int main() {
     testWind();
     testAirspace();
     testLoggerAndCup();
+    testFlightLog();
     testSettings();
     testTerrain();
     testFlight();

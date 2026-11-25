@@ -19,6 +19,7 @@
 #include "geo.h"
 #include "terrain.h"
 #include "topo.h"
+#include "flightlog.h"
 #include "i18n.h"
 #include "fanet.h"
 #include "ui/canvas.h"
@@ -236,6 +237,72 @@ static void render(World& w, const std::string& name) {
         u.nav = keep;
         if (ui::landingAskButtonAt(100, 210) != 0 || ui::landingAskButtonAt(800, 210) != 1 || ui::landingAskButtonAt(100, 100) != -1)
             std::printf("  [LADOWANIE] wrong button mapping\n"), problems++;
+    }
+    {   // power-off screen with the map background, TOPO without GPS (last position), saved flight viewer
+        bool ext = name == "skrajne";
+        const NavState& n0 = *u.nav;
+        boxes.clear();
+        ui::drawPowerOff(c, TR("WYŁĄCZONY", "POWERED OFF"), TR("Włączanie: przycisk PWR lub podłączenie USB", "Power on: PWR button or USB"), u.topo, n0.lat, n0.lon);
+        analyse(name + "/WYLACZONY-MAPA", boxes, false);
+        savePgm("/tmp/layout/" + name + "_off_map.pgm");
+        NavState ng = n0;
+        ng.fix = false;
+        const NavState* keep = u.nav;
+        u.nav = &ng;
+        u.lastLat = n0.lat;
+        u.lastLon = n0.lon;
+        boxes.clear();
+        ui::drawScreen(c, ui::SCR_TOPO, u);
+        analyse(name + "/TOPO-BEZ-GPS", boxes, true);  // same rules as the TOPO screen
+        savePgm("/tmp/layout/" + name + "_topo_nogps.pgm");
+        u.nav = keep;
+        // flight: a loop of 60 points; extreme values in the extreme scenario
+        FlightLog fl;
+        fl.year = 2026; fl.month = 12; fl.day = 31;
+        fl.startSec = ext ? 23 * 3600 + 59 * 60 : 13 * 3600;
+        fl.baro = !ext;
+        for (int i = 0; i < 60; i++) {
+            double a = i * 2 * kPi / 59;
+            fl.pts.push_back({i * (ext ? 600 : 80), (float)(n0.lat + 0.03 * std::sin(a)), (float)(n0.lon + 0.06 * (1 - std::cos(a))),
+                              (int16_t)(ext ? 8000 - 7900 * std::abs(std::sin(a)) : 150 + 300 * std::sin(a / 2))});
+        }
+        fl.minLat = n0.lat - 0.03; fl.maxLat = n0.lat + 0.03; fl.minLon = n0.lon; fl.maxLon = n0.lon + 0.12;
+        FlightStats& st = fl.st;
+        st.durationS = fl.pts.back().t;
+        st.distKm = ext ? 999.9f : 42.6f; st.maxDistKm = ext ? 499.9f : 10.f; st.takeoffAlt = 100;
+        st.maxAlt = ext ? 8888 : 475; st.minAlt = 100; st.maxClimb = ext ? 19.9f : 3.1f; st.maxSink = ext ? -19.9f : -2.4f;
+        st.maxSpeedKmh = ext ? 199 : 74; st.avgSpeedKmh = ext ? 188 : 32;
+        ui::FlightView fv;
+        fv.log = &fl;
+        fv.title = ext ? "2026-12-31-XPN-NAV-99-bardzo-dluga-nazwa-pliku.igc" : "2026-12-31-XPN-NAV-01.igc";
+        ui::flightViewFit(fv);
+        boxes.clear();
+        ui::drawFlightView(c, u, fv);
+        analyse(name + "/LOT", boxes, false);
+        savePgm("/tmp/layout/" + name + "_flight.pgm");
+        fv.cursor = 30;
+        boxes.clear();
+        ui::drawFlightView(c, u, fv);
+        analyse(name + "/LOT-PUNKT", boxes, false);
+        fv.askDelete = true;
+        ui::drawFlightView(c, u, fv);
+        boxes.clear();
+        ui::drawFlightDeleteAsk(c, fv);
+        analyse(name + "/LOT-USUN", boxes, false);
+        savePgm("/tmp/layout/" + name + "_flight_delete.pgm");
+        // touch mapping
+        ui::FlightView t = fv;
+        t.askDelete = false;
+        bool ok = ui::flightViewTap(t, 60, 500) == ui::FV_REDRAW && t.askDelete;   // DELETE -> confirmation
+        ok = ok && ui::flightViewTap(t, 300, 360) == ui::FV_REDRAW && !t.askDelete;  // CANCEL
+        t.askDelete = true;
+        ok = ok && ui::flightViewTap(t, 700, 360) == ui::FV_DELETE;                  // DELETE
+        ok = ok && ui::flightViewTap(t, 230, 500) == ui::FV_CLOSE;                   // CLOSE
+        int z = t.z;
+        ok = ok && ui::flightViewTap(t, 920, 80) == ui::FV_REDRAW && t.z == std::min(14, z + 1);  // +
+        ok = ok && ui::flightViewTap(t, 920, 145) == ui::FV_REDRAW && t.z == z;                   // -
+        ok = ok && ui::flightViewTap(t, 600, 470) == ui::FV_REDRAW && t.cursor >= 0;              // profile
+        if (!ok) std::printf("  [LOT] wrong touch mapping\n"), problems++;
     }
     if (w.asp.zones().size() >= 2) {   // airspace exit screen: horizontal / up / down / outside, and the route check
         int nz = (int)w.asp.zones().size();

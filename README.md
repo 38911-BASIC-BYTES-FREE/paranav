@@ -28,7 +28,7 @@ ParaNav is a flight computer for paramotor pilots, built on an off-the-shelf boa
 **Before and after the flight:**
 * **plan routes on the phone** (Android app, OpenTopoMap with airspace) and send them over Bluetooth – ParaNav checks right away whether the route crosses airspace,
 * **airspace, waypoints and maps** come from the phone, a card reader or a USB cable (the card as a drive on a computer),
-* **IGC and GPX logging** starts and stops by itself; a flight summary after landing,
+* **IGC and GPX logging** starts and stops by itself; a flight summary after landing; **saved flights** can be viewed on the map with an altitude profile and deleted,
 * **charging** – when USB is plugged in the device asks: navigation, charging or files.
 
 **Hardware:** LilyGO T5 E-Paper S3 Pro (ESP32-S3, 4.7″ 960×540 screen, GPS, LoRa radio, battery) + an inexpensive MS5611 barometer or a BlueFlyVario. English or Polish user interface, built-in help in the menu.
@@ -156,6 +156,19 @@ The flight no longer ends by itself after a minute without movement – flying i
 Without an answer the flight goes on. If you still do not move, the flight ends by itself **4 min** after the question appeared (countdown in the bottom line); moving again (above 8 km/h or vario beyond ±1 m/s) closes the question. When you are **higher than 50 m above the terrain** (needs terrain files) there is no question. The flight time in the summary ends when you stopped, not when you answered.
 
 <p align="center"><img src="docs/screens/en/U_landing_question.png" width="60%" alt="LANDED? question"><br><sub>LANDED? question on the FLIGHT screen</sub></p>
+
+### Saved flights
+**Menu → Saved flights** – flights on the card (IGC files in `logs/`, newest first: date, takeoff time, airtime). The chosen flight opens on a screen similar to XContest (after landing; the list does not open in flight):
+* **flight data on the left**: airtime, track length, average speed, max gain and the maximum values – altitude, distance from takeoff, climb and sink (over 10 s), speed,
+* **the track on the background map** from the card (white where there is no map); dot – takeoff, square – landing. **+ / –** (or KEY / BOOT short) – zoom in / out, **ALL** – whole flight, **tap the map** to move that point to the centre,
+* **altitude profile** at the bottom (hatched – ground, with `.hgt` files). **Tap the profile** to select a moment: a ring on the map and, below the profile, time, altitude, height above ground, vario and speed,
+* **DELETE** (or hold BOOT) – after a confirmation the IGC and GPX files are removed; **CLOSE** (or hold KEY) – back.
+
+Altitude comes from the barometer levelled to GPS altitude (the IGC file keeps the QNE pressure altitude), without a barometer from GPS. Statistics use every fix; up to 6000 points go to the map and the profile.
+
+| Flight with a selected point | Delete question |
+|:---:|:---:|
+| <img src="docs/screens/en/G_lot_punkt.png" width="100%" alt="Saved flight"> | <img src="docs/screens/en/G_lot_usun.png" width="100%" alt="Deleting a flight"> |
 
 ### Airspace exit and route check
 When you enter active airspace (the zones that raise the INSIDE alert – ignored classes and zones inactive according to the AUP file do not count), the alert has two buttons:
@@ -299,6 +312,14 @@ Overlays: your position and track, flight track, HOME, line to the target, waypo
 
 At **z12** masts, towers and chimneys are shown from 40 m (telecom towers and flares always) and clusters as one symbol with a count; cranes appear only at z14. From z13 on the map shows everything as in the table above (except cranes). This is a generator change – regenerate the map to see it.
 
+**Without a GPS signal** (e.g. right after power-on) TOPO shows the map at the **last known position** – kept in the device memory also over power-off (saved at the first fix, then every 10 min after moving more than 1 km, at landing and at power-off). A black **NO GPS SIGNAL** banner and a dashed ring instead of the arrow remind you that this is not the current position; airspace is not drawn then.
+
+<p align="center"><img src="docs/screens/en/T_topo_bez_gps.png" width="60%" alt="TOPO without GPS signal"><br><sub>TOPO without a GPS signal – map at the last known position</sub></p>
+
+**The power-off screen** has the map from the card around the last position in the background (z11 – a calm view: towns, main roads, water); without maps a plain background. The e-paper keeps this image without power.
+
+<p align="center"><img src="docs/screens/en/D_power_off_map.png" width="60%" alt="Power-off screen with a map background"><br><sub>Power-off screen with a map background</sub></p>
+
 > The OSM-based map is an orientation aid, **not an aeronautical chart** – power lines and obstacles may be incomplete.
 
 ### 1. Making the map
@@ -382,6 +403,11 @@ After **3 crashes in a row** within 2 minutes of starting, ParaNav starts in **s
 ## Version history
 
 Newest first. Dates are the days the code packages were made (2026). The firmware number is in `src/config.h`, the app's in `android/app/build.gradle`. From 0.5.8 on, ready-made files are in **Releases**.
+
+### Next version (in progress)
+* **Saved flights** (Menu → Saved flights): list, flight on the map with data on the left and an altitude profile at the bottom (like XContest), zoom and move the map, select a point on the profile, delete a flight (IGC + GPX).
+* **TOPO without a GPS signal**: map at the last known position (kept over power-off), with a NO GPS SIGNAL banner, no airspace.
+* **Power-off screen** with the map from the card in the background.
 
 ### 0.5.10 – 23 Nov
 * **FL95 altitude limit** as a setting (Menu → Alarms → *Max altitude FL*, `maxFl` in `config.ini`, 0 = no limit): the airspace exit no longer offers climbing above the limit (e.g. over a zone ending at FL95), the route check never counts a flying height above the limit.

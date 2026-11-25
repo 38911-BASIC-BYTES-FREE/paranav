@@ -2,6 +2,7 @@
 #include "../i18n.h"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -860,6 +861,62 @@ static void blitTile(Canvas& c, const uint8_t* bits, int sx, int sy) {
     }
 }
 
+// Tile into the rectangle [x0, x1) x [y0, y1) only
+static void blitTileRect(Canvas& c, const uint8_t* bits, int sx, int sy, int x0, int y0, int x1, int y1) {
+    int r0 = std::max(0, y0 - sy), r1 = std::min(256, y1 - sy);
+    int b0 = std::max(0, x0 - sx) / 8, b1 = std::min(32, (x1 - sx + 7) / 8);
+    for (int r = r0; r < r1; r++) {
+        const uint8_t* row = bits + r * 32;
+        int y = sy + r;
+        for (int b = b0; b < b1; b++) {
+            uint8_t v = row[b];
+            if (!v) continue;
+            int x = sx + b * 8;
+            for (int k = 0; k < 8; k++)
+                if ((v & (0x80 >> k)) && x + k >= x0 && x + k < x1) c.px(x + k, y, BLACK);
+        }
+    }
+}
+
+// Map tiles of zoom z for a screen rectangle (x0, y0, w, h); (ox, oy) = global pixel of (x0, y0).
+// Every tile comes from the map area that covers it (white where there is no map). Returns the
+// number of tiles drawn.
+static int drawTilesRect(Canvas& c, nav::TopoMap* topo, int z, double ox, double oy, int x0, int y0, int w, int h) {
+    if (!topo || topo->areas().empty() || z < nav::kTopoMinZoom || z > nav::kTopoMaxZoom) return 0;
+    int drawn = 0;
+    int tx0 = (int)std::floor(ox / 256), ty0 = (int)std::floor(oy / 256);
+    int tx1 = (int)std::floor((ox + w - 1) / 256), ty1 = (int)std::floor((oy + h - 1) / 256);
+    for (int ty = ty0; ty <= ty1; ty++)
+        for (int tx = tx0; tx <= tx1; tx++) {
+            double la, lo;
+            nav::topoToLatLon(tx * 256.0 + 128, ty * 256.0 + 128, z, la, lo);
+            int area = topo->areaFor(la, lo);
+            if (area < 0 || !topo->areas()[area].hasZoom(z)) {
+                // the best area for this place may not have this zoom: any other that does
+                area = -1;
+                for (int i = 0; i < (int)topo->areas().size(); i++)
+                    if (topo->areas()[i].hasZoom(z) && topo->areas()[i].contains(la, lo)) { area = i; break; }
+                if (area < 0) continue;
+            }
+            const uint8_t* bits = nullptr;
+            if (topo->tile(area, z, tx, ty, &bits) != nav::TopoTile::Ok) continue;
+            int sx = x0 + (int)(tx * 256.0 - std::floor(ox)), sy = y0 + (int)(ty * 256.0 - std::floor(oy));
+            blitTileRect(c, bits, sx, sy, x0, y0, x0 + w, y0 + h);
+            drawn++;
+        }
+    return drawn;
+}
+
+// zoom level with tiles closest to "want" in any map area (or want itself when there are none)
+static int nearestMapZoom(nav::TopoMap* topo, int want) {
+    if (!topo) return want;
+    for (int d = 0; d <= 4; d++)
+        for (int zz : {want - d, want + d})
+            for (const auto& a : topo->areas())
+                if (a.hasZoom(zz)) return zz;
+    return want;
+}
+
 // sparse dots = "no map data here"
 static void noDataTile(Canvas& c, int sx, int sy) {
     int y0 = std::max(TY, sy), y1 = std::min(TY + TH, sy + 256);
@@ -882,8 +939,11 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     const NavState& n = *u.nav;
     nav::TopoView dummy;
     nav::TopoView& v = u.topoView ? *u.topoView : dummy;
-    bool havePos = n.fix || n.homeSet;
-    double lat = n.fix ? n.lat : n.homeLat, lon = n.fix ? n.lon : n.homeLon;
+    // no fix: the map stays at the last known position (marked as old), airspace is not drawn
+    const bool haveLast = !std::isnan(u.lastLat) && !std::isnan(u.lastLon);
+    const bool stale = !n.fix;
+    bool havePos = n.fix || haveLast || n.homeSet;
+    double lat = n.fix ? n.lat : haveLast ? u.lastLat : n.homeLat, lon = n.fix ? n.lon : haveLast ? u.lastLon : n.homeLon;
     int area = (u.topo && havePos) ? u.topo->areaFor(lat, lon) : -1;
     int z = std::max(nav::kTopoMinZoom, std::min(nav::kTopoMaxZoom, u.set->topoZoom));
     if (area >= 0) {
@@ -940,8 +1000,8 @@ static void drawTopo(Canvas& c, const UiContext& u) {
         note = (u.topo && !u.topo->areas().empty()) ? TR("brak mapy dla tej okolicy", "no map for this area") : TR("brak map (karta SD /maps)", "no maps (SD card /maps)");
     }
 
-    // airspace outlines only (details: STREFY screen + alerts)
-    if (u.asp) {
+    // airspace outlines only (details: STREFY screen + alerts); not around an old position
+    if (u.asp && !stale) {
         const auto& zs = u.asp->zones();
         double vlat0, vlon0, vlat1, vlon1;
         nav::topoToLatLon(pr.ox, pr.oy, z, vlat0, vlon0);
@@ -1002,11 +1062,15 @@ static void drawTopo(Canvas& c, const UiContext& u) {
             c.fillCircle(t.x, t.y, 7, BLACK);
         }
     }
-    drawTrafficOnMap(c, u, [&](double la, double lo) { return pr.to(la, lo); }, 0.f, 0, TY, W, TY + TH);
+    if (!stale) drawTrafficOnMap(c, u, [&](double la, double lo) { return pr.to(la, lo); }, 0.f, 0, TY, W, TY + TH);
     if (n.fix) {
         c.fillCircle(me.x, me.y, 26, WHITE);
         c.circle(me.x, me.y, 26, BLACK, 1);
         c.arrow(me.x, me.y, 44, n.trackDeg, BLACK);
+    } else if (haveLast) {  // last known position: dashed ring, no direction
+        c.fillCircle(me.x, me.y, 30, WHITE);
+        c.circle(me.x, me.y, 26, BLACK, 5, 8);
+        c.fillCircle(me.x, me.y, 7, BLACK);
     } else {
         c.fillCircle(me.x, me.y, 10, WHITE);
         drawHome(c, me);
@@ -1040,7 +1104,10 @@ static void drawTopo(Canvas& c, const UiContext& u) {
     }
     // bottom-right: nearest airspace
     topoBox(c, W - BOXW, BY);
-    if (u.hits && !u.hits->empty() && u.asp && u.hits->front().idx >= 0 &&
+    if (stale) {
+        label(c, W - BOXW + 6, BY + 32, TR("STREFY", "AIRSPACE"));
+        c.text(W - BOXW + 6, BY + 72, TR("brak GPS", "no GPS"), font_sb, BLACK);
+    } else if (u.hits && !u.hits->empty() && u.asp && u.hits->front().idx >= 0 &&
         u.hits->front().idx < (int)u.asp->zones().size()) {
         const nav::AirspaceHit& h = u.hits->front();
         const nav::Airspace& a = u.asp->zones()[h.idx];
@@ -1081,11 +1148,22 @@ static void drawTopo(Canvas& c, const UiContext& u) {
         c.vline(bx + len - 1, y - 14, 18, BLACK);
         c.text(bx + len + 12, y + 2, t, font_s, BLACK);
     }
+    int noteY = TY + 6;
+    if (stale) {  // black banner: this is not the current position
+        const char* t1 = TR("BRAK SYGNAŁU GPS", "NO GPS SIGNAL");
+        const char* t2 = TR("mapa z ostatniej znanej pozycji", "map at the last known position");
+        int tw = std::max(Canvas::textWidth(t1, font_m), Canvas::textWidth(t2, font_s));
+        int bw = tw + 40, bx = W / 2 - bw / 2;
+        c.fillRoundRect(bx, noteY, bw, 74, kCardR, BLACK);
+        c.text(W / 2, noteY + 36, t1, font_m, WHITE, CENTER);
+        c.text(W / 2, noteY + 64, t2, font_s, WHITE, CENTER);
+        noteY += 82;
+    }
     if (note) {
         int tw = Canvas::textWidth(note, font_sb);
-        c.fillRect(W / 2 - tw / 2 - 12, TY + 6, tw + 24, 40, WHITE);
-        c.rect(W / 2 - tw / 2 - 12, TY + 6, tw + 24, 40, BLACK, 2);
-        c.text(W / 2, TY + 36, note, font_sb, BLACK, CENTER);
+        c.fillRect(W / 2 - tw / 2 - 12, noteY, tw + 24, 40, WHITE);
+        c.rect(W / 2 - tw / 2 - 12, noteY, tw + 24, 40, BLACK, 2);
+        c.text(W / 2, noteY + 30, note, font_sb, BLACK, CENTER);
     }
 }
 
@@ -1958,11 +2036,373 @@ void drawPowerHint(Canvas& c) {
     c.text(W / 2, y + 145, TR("puść, aby anulować", "release to cancel"), font_s, BLACK, CENTER);
 }
 
-void drawPowerOff(Canvas& c, const char* line1, const char* line2) {
+void drawPowerOff(Canvas& c, const char* line1, const char* line2, nav::TopoMap* topo, double lat, double lon) {
     c.clear(WHITE);
+    bool map = false;
+    if (topo && !topo->areas().empty()) {
+        // decorative background: the map around the last position (or the first map area)
+        if (std::isnan(lat) || std::isnan(lon) || topo->areaFor(lat, lon) < 0) {
+            lat = topo->areas()[0].lat0;
+            lon = topo->areas()[0].lon0;
+        }
+        int z = nearestMapZoom(topo, 11);  // z11: towns, main roads, water - calm enough for a background
+        double px, py;
+        nav::topoToPixel(lat, lon, z, px, py);
+        map = drawTilesRect(c, topo, z, std::floor(px) - W / 2, std::floor(py) - H / 2, 0, 0, W, H) > 0;
+    }
+    if (map) {
+        const int bw = 640, bh = 260, bx = (W - bw) / 2, by = 118;
+        c.fillRoundRect(bx - 8, by - 8, bw + 16, bh + 16, kCardR + 8, WHITE);
+        c.roundRect(bx, by, bw, bh, kCardR + 4, BLACK, 3);
+        const char* osm = TR("mapa: OpenStreetMap", "map: OpenStreetMap");
+        int tw = Canvas::textWidth(osm, font_s);
+        c.fillRect(W - tw - 20, H - 34, tw + 20, 34, WHITE);
+        c.text(W - 10, H - 10, osm, font_s, BLACK, RIGHT);
+    }
     c.text(W / 2, 200, "ParaNav", font_xl, BLACK, CENTER);
-    c.text(W / 2, 300, line1, font_l, BLACK, CENTER);
-    c.text(W / 2, 360, line2, font_sb, BLACK, CENTER);
+    c.text(W / 2, 290, line1, font_l, BLACK, CENTER);
+    c.text(W / 2, 345, line2, font_sb, BLACK, CENTER);
+}
+
+// ------------------------------------------------------------------ SAVED FLIGHT VIEWER
+namespace {
+constexpr int FPW = 300;                        // data panel on the left
+constexpr int FMX = FPW, FMY = 40, FMW = W - FPW, FMH = 362;  // map
+constexpr int FGY = FMY + FMH, FGH = H - FGY;   // profile (graph + readout line)
+constexpr int FGT = FGY + 6, FGB = H - 40;      // graph top / bottom
+constexpr int FBW = 70, FBH = 56;               // map buttons (right edge)
+constexpr int FBX = W - FBW - 8;
+constexpr int FBY[3] = {FMY + 8, FMY + 8 + FBH + 8, FMY + 8 + 2 * (FBH + 8)};
+constexpr int FKY = H - 64, FKH = 56;           // panel buttons: DELETE / CLOSE
+constexpr int FDY = 150, FDH = 240;             // delete confirmation card
+constexpr int kFvMinZ = 5, kFvMaxZ = 14;
+
+int fvLocal(const UiContext& u, int utcSec) {
+    int t = utcSec + (u.set ? u.set->tzOffsetMin * 60 : 0);
+    return ((t % 86400) + 86400) % 86400;
+}
+std::string fvClock(int sec) {
+    char b[16];
+    sec = ((sec % 86400) + 86400) % 86400;
+    std::snprintf(b, sizeof b, "%02d:%02d", sec / 3600, (sec / 60) % 60);
+    return b;
+}
+// profile x for time t
+int fvTx(const nav::FlightLog& l, int t) {
+    int d = std::max(1, l.st.durationS);
+    return FMX + 8 + (int)((int64_t)t * (FMW - 16) / d);
+}
+// vario and ground speed around point i (+-10 s)
+void fvRates(const nav::FlightLog& l, int i, float& vario, float& kmh) {
+    int a = i, b = i;
+    while (a > 0 && l.pts[i].t - l.pts[a].t < 10) a--;
+    while (b + 1 < (int)l.pts.size() && l.pts[b].t - l.pts[i].t < 10) b++;
+    int dt = l.pts[b].t - l.pts[a].t;
+    vario = kmh = NAN;
+    if (dt <= 0) return;
+    vario = (float)(l.pts[b].alt - l.pts[a].alt) / dt;
+    kmh = (float)(nav::distanceM({l.pts[a].lat, l.pts[a].lon}, {l.pts[b].lat, l.pts[b].lon}) / dt * 3.6);
+}
+}  // namespace
+
+void flightViewFit(FlightView& v) {
+    if (!v.log || v.log->pts.empty()) return;
+    const nav::FlightLog& l = *v.log;
+    for (int z = kFvMaxZ; z >= kFvMinZ; z--) {
+        double x0, y0, x1, y1;
+        nav::topoToPixel(l.maxLat, l.minLon, z, x0, y0);
+        nav::topoToPixel(l.minLat, l.maxLon, z, x1, y1);
+        if ((x1 - x0 <= FMW - 2 * FBW - 40 && y1 - y0 <= FMH - 60) || z == kFvMinZ) {
+            v.z = z;
+            v.cx = (x0 + x1) / 2;
+            v.cy = (y0 + y1) / 2;
+            return;
+        }
+    }
+}
+
+void flightViewZoom(FlightView& v, int dir) {
+    int nz = std::max(kFvMinZ, std::min(kFvMaxZ, v.z + (dir > 0 ? 1 : -1)));
+    double k = std::ldexp(1.0, nz - v.z);
+    v.cx *= k;
+    v.cy *= k;
+    v.z = nz;
+}
+
+FlightViewAction flightViewTap(FlightView& v, int x, int y) {
+    if (!v.log) return FV_NONE;
+    if (v.askDelete) {  // [ CANCEL ] [ DELETE ]
+        if (y >= FDY + FDH - 90 && y < FDY + FDH) {
+            v.askDelete = false;
+            return x >= W / 2 ? FV_DELETE : FV_REDRAW;
+        }
+        return FV_NONE;
+    }
+    if (x < FPW) {
+        if (y >= FKY && y < FKY + FKH) {
+            if (x < FPW / 2) {
+                v.askDelete = true;
+                return FV_REDRAW;
+            }
+            return FV_CLOSE;
+        }
+        return FV_NONE;
+    }
+    if (x >= FBX && y >= FBY[0] && y < FBY[2] + FBH) {
+        if (y < FBY[0] + FBH) flightViewZoom(v, +1);
+        else if (y >= FBY[1] && y < FBY[1] + FBH) flightViewZoom(v, -1);
+        else if (y >= FBY[2]) flightViewFit(v);
+        else return FV_NONE;
+        return FV_REDRAW;
+    }
+    if (y >= FMY && y < FMY + FMH) {  // map: this point to the centre
+        v.cx += x - (FMX + FMW / 2);
+        v.cy += y - (FMY + FMH / 2);
+        return FV_REDRAW;
+    }
+    if (y >= FGY && !v.log->pts.empty()) {  // profile: select the point at this time
+        const nav::FlightLog& l = *v.log;
+        int best = 0, bd = 1 << 30;
+        for (int i = 0; i < (int)l.pts.size(); i++) {
+            int d = std::abs(fvTx(l, l.pts[i].t) - x);
+            if (d < bd) bd = d, best = i;
+        }
+        v.cursor = best;
+        return FV_REDRAW;
+    }
+    return FV_NONE;
+}
+
+void drawFlightView(Canvas& c, const UiContext& u, const FlightView& v) {
+    c.clear(WHITE);
+    if (!v.log || v.log->pts.empty()) return;
+    const nav::FlightLog& l = *v.log;
+    const nav::FlightStats& st = l.st;
+    char b[96];
+
+    // ---- map (drawn first, the panels are drawn over its edges)
+    const double ox = std::floor(v.cx) - FMW / 2, oy = std::floor(v.cy) - FMH / 2;
+    auto to = [&](double la, double lo) {
+        double px, py;
+        nav::topoToPixel(la, lo, v.z, px, py);
+        double xx = std::max(-30000.0, std::min(30000.0, px - ox + FMX)), yy = std::max(-30000.0, std::min(30000.0, py - oy + FMY));
+        return Pt{(int)std::lround(xx), (int)std::lround(yy)};
+    };
+    int tiles = drawTilesRect(c, u.topo, v.z, ox, oy, FMX, FMY, FMW, FMH);
+    {
+        static std::vector<Pt> tp;  // reused
+        tp.clear();
+        tp.reserve(l.pts.size());
+        Pt last{-99999, -99999};
+        for (const auto& p : l.pts) {
+            Pt q = to(p.lat, p.lon);
+            if (std::abs(q.x - last.x) + std::abs(q.y - last.y) < 2) continue;  // same pixel
+            tp.push_back(q);
+            last = q;
+        }
+        // white halo under the black track: readable over the map lines
+        c.polyline(tp.data(), (int)tp.size(), WHITE, 13);
+        c.polyline(tp.data(), (int)tp.size(), BLACK, 5);
+    }
+    Pt t0 = to(l.pts.front().lat, l.pts.front().lon), t1 = to(l.pts.back().lat, l.pts.back().lon);
+    c.fillCircle(t0.x, t0.y, 13, WHITE);
+    c.fillCircle(t0.x, t0.y, 9, BLACK);  // takeoff: dot
+    c.fillRect(t1.x - 11, t1.y - 11, 22, 22, WHITE);
+    c.rect(t1.x - 8, t1.y - 8, 16, 16, BLACK, 4);  // landing: square
+    if (v.cursor >= 0 && v.cursor < (int)l.pts.size()) {
+        Pt q = to(l.pts[v.cursor].lat, l.pts[v.cursor].lon);
+        c.fillCircle(q.x, q.y, 16, WHITE);
+        c.circle(q.x, q.y, 14, BLACK, 4);
+        c.fillCircle(q.x, q.y, 4, BLACK);
+    }
+    if (tiles == 0) {
+        const char* nm = TR("brak mapy dla tego miejsca", "no map for this place");
+        int tw = Canvas::textWidth(nm, font_s);
+        c.fillRect(FMX + 8, FMY + 8, tw + 16, 30, WHITE);
+        c.text(FMX + 16, FMY + 30, nm, font_s, BLACK);
+    }
+    // scale bar, bottom left of the map
+    {
+        double mpp = nav::topoMetresPerPixel((l.minLat + l.maxLat) / 2, v.z);
+        if (!(mpp > 0.01)) mpp = 0.01;
+        static const float steps[] = {50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000};
+        float m = steps[0];
+        for (float s : steps)
+            if (s / mpp <= 150) m = s;
+        int len = std::max(2, std::min(150, (int)std::lround(m / mpp)));
+        if (m < 1000) std::snprintf(b, sizeof b, "%d m", (int)m);
+        else std::snprintf(b, sizeof b, "%d km", (int)(m / 1000));
+        int tw = Canvas::textWidth(b, font_s);
+        int bx = FMX + 14, y = FMY + FMH - 14;
+        c.fillRect(bx - 6, y - 30, len + tw + 26, 40, WHITE);
+        c.fillRect(bx, y - 4, len, 6, BLACK);
+        c.vline(bx, y - 12, 16, BLACK);
+        c.vline(bx + len - 1, y - 12, 16, BLACK);
+        c.text(bx + len + 10, y + 2, b, font_s, BLACK);
+    }
+    // zoom buttons
+    const char* bl[3] = {"+", "–", TR("CAŁY", "ALL")};
+    for (int i = 0; i < 3; i++) {
+        c.fillRoundRect(FBX + 4, FBY[i] + 4, FBW, FBH, 12, BLACK);  // shadow
+        c.fillRoundRect(FBX, FBY[i], FBW, FBH, 12, WHITE);
+        c.roundRect(FBX, FBY[i], FBW, FBH, 12, BLACK, 3);
+        c.text(FBX + FBW / 2, FBY[i] + (i < 2 ? 42 : 37), bl[i], i < 2 ? font_l : font_s, BLACK, CENTER);
+    }
+    c.hline(FMX, FGY - 1, FMW, BLACK);
+    c.hline(FMX, FGY, FMW, BLACK);
+
+    // ---- altitude profile with the ground below (terrain files)
+    c.fillRect(FMX, FGY + 1, FMW, FGH - 1, WHITE);
+    {
+        const int gx0 = FMX + 8, gx1 = W - 8, gw = gx1 - gx0;
+        std::vector<int16_t> alt(gw, INT16_MIN), gnd(gw, INT16_MIN);
+        size_t j = 0;
+        for (int x = 0; x < gw; x++) {
+            int t = (int)((int64_t)x * std::max(1, st.durationS) / std::max(1, gw - 1));
+            while (j + 1 < l.pts.size() && l.pts[j + 1].t <= t) j++;
+            alt[x] = l.pts[j].alt;
+            if (u.terrain) {
+                float g = u.terrain->elevation(l.pts[j].lat, l.pts[j].lon);
+                if (!std::isnan(g)) gnd[x] = (int16_t)std::lround(g);
+            }
+        }
+        float lo = st.minAlt, hi = st.maxAlt;
+        for (int x = 0; x < gw; x++)
+            if (gnd[x] != INT16_MIN) lo = std::min(lo, (float)gnd[x]);
+        lo = std::floor(lo / 100) * 100;
+        hi = std::max(lo + 100, std::ceil(hi / 100) * 100);
+        auto ay = [&](float a) { return FGB - (int)std::lround((a - lo) / (hi - lo) * (FGB - FGT - 4)); };
+        // ground: hatched, outlined
+        for (int x = 0; x < gw; x++) {
+            if (gnd[x] == INT16_MIN) continue;
+            int gy = std::max(FGT, ay(gnd[x]));
+            for (int y = gy; y <= FGB; y++)
+                if (((gx0 + x) + y) % 6 == 0) c.px(gx0 + x, y, BLACK);
+            c.px(gx0 + x, gy, BLACK);
+        }
+        // altitude grid: dotted lines every 100/200/500 m
+        float stepA = 100;  // at most 4 grid lines
+        for (float st2 : {100.f, 200.f, 500.f, 1000.f, 2000.f, 5000.f}) {
+            stepA = st2;
+            if ((hi - lo) / st2 <= 4) break;
+        }
+        for (float a = std::ceil(lo / stepA) * stepA; a <= hi; a += stepA) {
+            int y = ay(a);
+            if (y >= FGT + 18) c.line(gx0, y, gx1, y, BLACK, 1, 4);
+        }
+        // time ticks every 15 / 30 / 60 min (local time)
+        int stepT = st.durationS <= 3600 ? 900 : st.durationS <= 3 * 3600 ? 1800 : 3600;
+        int s0 = fvLocal(u, l.startSec);
+        for (int k = (s0 / stepT + 1) * stepT; k - s0 <= st.durationS; k += stepT) c.vline(fvTx(l, k - s0), FGB - 8, 9, BLACK);
+        // altitude: thick line
+        Pt prev{0, 0};
+        for (int x = 0; x < gw; x++) {
+            Pt p{gx0 + x, ay(alt[x])};
+            if (x) c.line(prev.x, prev.y, p.x, p.y, BLACK, 3);
+            prev = p;
+        }
+        // labels on white boxes, over the line: altitudes on the left, times at the top
+        auto tag = [&](int x, int base, const std::string& t, Align al) {
+            int tw = Canvas::textWidth(t.c_str(), font_s);
+            int lx = al == CENTER ? x - tw / 2 : al == RIGHT ? x - tw : x;
+            c.fillRect(lx - 3, base - 19, tw + 6, 24, WHITE);
+            c.text(x, base, t, font_s, BLACK, al);
+        };
+        for (float a = std::ceil(lo / stepA) * stepA; a <= hi; a += stepA) {
+            int y = ay(a);
+            if (y < FGT + 18 || y > FGB - 16) continue;
+            std::snprintf(b, sizeof b, "%d m", (int)a);
+            tag(gx0 + 2, y + 8, b, LEFT);
+        }
+        for (int k = (s0 / stepT + 1) * stepT; k - s0 <= st.durationS; k += stepT) {
+            int x = fvTx(l, k - s0);
+            std::string ts = fvClock(k % 86400);
+            int tw = Canvas::textWidth(ts.c_str(), font_s);
+            if (x - tw / 2 > gx0 + 80 && x + tw / 2 < gx1) tag(x, FGT + 20, ts, CENTER);
+        }
+        c.hline(gx0, FGB + 1, gw, BLACK);
+        // readout line: selected point, or a hint
+        if (v.cursor >= 0 && v.cursor < (int)l.pts.size()) {
+            const nav::FlightPoint& p = l.pts[v.cursor];
+            int x = fvTx(l, p.t);
+            c.line(x, FGT, x, FGB, BLACK, 2, 5);
+            float va, kmh;
+            fvRates(l, v.cursor, va, kmh);
+            float g = u.terrain ? u.terrain->elevation(p.lat, p.lon) : NAN;
+            std::string agl;
+            if (!std::isnan(g)) {
+                std::snprintf(b, sizeof b, TR("  ·  %d m n.t.", "  ·  %d m AGL"), (int)std::lround(p.alt - g));
+                agl = b;
+            }
+            std::snprintf(b, sizeof b, "%s  ·  %d m%s  ·  %+.1f m/s  ·  %d km/h", fvClock(fvLocal(u, l.startSec + p.t)).c_str(), (int)p.alt, agl.c_str(),
+                          std::isnan(va) ? 0.0 : (double)va, std::isnan(kmh) ? 0 : (int)std::lround(kmh));
+            const Font& rf = Canvas::textWidth(b, font_sb) <= FMW - 20 ? font_sb : font_s;
+            c.text(FMX + 10, H - 10, trunc(b, rf, FMW - 20), rf, BLACK);
+        } else {
+            c.text(FMX + 10, H - 10, TR("dotknij profilu: punkt na mapie  ·  dotknij mapy: przesuń", "tap the profile: point on the map  ·  tap the map: move"), font_s, BLACK);
+        }
+    }
+
+    // ---- data panel
+    c.fillRect(0, 0, FPW, H, WHITE);
+    drawStatusBar(c, SCR_SYSTEM, u, TR("ZAPISANY LOT", "SAVED FLIGHT"));
+    card(c, 4, 44, FPW - 6, H - 5);
+    std::snprintf(b, sizeof b, "%02d.%02d.%04d", l.day, l.month, l.year);
+    c.text(18, 84, b, font_m, BLACK);
+    std::string tt = fvClock(fvLocal(u, l.startSec)) + " – " + fvClock(fvLocal(u, l.startSec + st.durationS));
+    c.text(18, 114, tt, font_sb, BLACK);
+    int y = 150;
+    auto row = [&](const char* lab, const std::string& val) {
+        int vw = Canvas::textWidth(val.c_str(), font_sb);
+        c.text(18, y, trunc(lab, font_s, FPW - 38 - vw - 12), font_s, BLACK);
+        c.text(FPW - 20, y, val, font_sb, BLACK, RIGHT);
+        y += 31;
+    };
+    row(TR("Czas lotu", "Airtime"), fmtDur((float)st.durationS) + " h");
+    std::snprintf(b, sizeof b, "%.1f km", (double)st.distKm);
+    row(TR("Ślad", "Track length"), b);
+    std::snprintf(b, sizeof b, "%d km/h", (int)std::lround(st.avgSpeedKmh));
+    row(TR("Prędkość śr.", "Avg speed"), b);
+    std::snprintf(b, sizeof b, "%d m", (int)std::lround(st.maxAlt - st.takeoffAlt));
+    row(TR("Przewyższenie", "Max gain"), b);
+    c.hline(18, y - 18, FPW - 38, BLACK);
+    c.text(18, y + 4, TR("MAKSYMALNIE", "MAXIMUM"), font_s, BLACK);
+    y += 34;
+    std::snprintf(b, sizeof b, "%d m", (int)std::lround(st.maxAlt));
+    row(TR("wysokość", "altitude"), b);
+    std::snprintf(b, sizeof b, "%.1f km", (double)st.maxDistKm);
+    row(TR("od startu", "from takeoff"), b);
+    std::snprintf(b, sizeof b, "%+.1f m/s", (double)st.maxClimb);
+    row(TR("wznoszenie", "climb"), b);
+    std::snprintf(b, sizeof b, "%+.1f m/s", (double)st.maxSink);
+    row(TR("opadanie", "sink"), b);
+    std::snprintf(b, sizeof b, "%d km/h", (int)std::lround(st.maxSpeedKmh));
+    row(TR("prędkość", "speed"), b);
+    if (!l.baro) c.text(18, y - 4, trunc(TR("wysokość z GPS (bez barometru)", "GPS altitude (no barometer)"), font_s, FPW - 38), font_s, BLACK);
+    // [ DELETE ] [ CLOSE ]
+    const int bw = FPW / 2 - 20;
+    c.roundRect(14, FKY, bw, FKH, 14, BLACK, 3);
+    c.text(14 + bw / 2, FKY + 37, TR("USUŃ", "DELETE"), font_sb, BLACK, CENTER);
+    c.fillRoundRect(FPW / 2 + 2, FKY, bw, FKH, 14, BLACK);
+    c.text(FPW / 2 + 2 + bw / 2, FKY + 37, TR("ZAMKNIJ", "CLOSE"), font_sb, WHITE, CENTER);
+
+    if (v.askDelete) drawFlightDeleteAsk(c, v);
+}
+
+void drawFlightDeleteAsk(Canvas& c, const FlightView& v) {
+    const int x0 = 120, w = W - 240;
+    c.fillRoundRect(x0 - 6, FDY - 6, w + 12, FDH + 12, kCardR + 6, WHITE);
+    c.fillRoundRect(x0, FDY, w, FDH, kCardR + 4, BLACK);
+    c.text(W / 2, FDY + 56, TR("USUNĄĆ TEN LOT?", "DELETE THIS FLIGHT?"), font_l, WHITE, CENTER);
+    c.text(W / 2, FDY + 96, trunc(v.title, font_sb, w - 40), font_sb, WHITE, CENTER);
+    c.text(W / 2, FDY + 124, TR("pliki IGC i GPX znikną z karty", "the IGC and GPX files are removed from the card"), font_s, WHITE, CENTER);
+    const int by = FDY + FDH - 84, hw = w / 2 - 30;
+    c.fillRoundRect(x0 + 20, by, hw, 64, 18, WHITE);
+    c.text(x0 + 20 + hw / 2, by + 34, TR("ANULUJ", "CANCEL"), font_m, BLACK, CENTER);
+    c.text(x0 + 20 + hw / 2, by + 58, TR("KLAWISZ", "KEY"), font_s, BLACK, CENTER);
+    c.roundRect(W / 2 + 10, by, hw, 64, 18, WHITE, 3);
+    c.text(W / 2 + 10 + hw / 2, by + 34, TR("USUŃ", "DELETE"), font_m, WHITE, CENTER);
+    c.text(W / 2 + 10 + hw / 2, by + 58, "BOOT", font_s, WHITE, CENTER);
 }
 
 void drawBoot(Canvas& c, const std::vector<std::string>& lines, const char* version) {

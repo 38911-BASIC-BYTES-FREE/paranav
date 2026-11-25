@@ -5,6 +5,9 @@
 # show values. Needs g++ and python3 with numpy + Pillow.
 # V_*, W_*, X_*, Y_*, Z_* (USB question, charging, airspace exit, route check, inside-airspace alert)
 # come from the layout test (tools/preview/layout_check.cpp, scenarios "normalny" and "skrajne").
+# D_power_off_map, T_topo_bez_gps and G_lot* need a real background map: run with
+# PARANAV_DEMO_MAPS=<make_tiles.py output>/maps (README images were made with a 40 km map of Gdansk);
+# without it they are not regenerated.
 set -e
 cd "$(dirname "$0")/../.."
 T=/tmp/paranav_screens
@@ -17,6 +20,10 @@ y, x = np.mgrid[0:n, 0:n] / 1200.0
 lat, lon = 53 - y, 20 + x
 h = 110 + 25 * np.sin((lat - 52.0) * 40) * np.cos((lon - 20.8) * 30) + 15 * (lon - 20.85) * 10
 np.clip(h, 80, 250).astype(">i2").tofile(sys.argv[1])
+# around the demo map (Gdansk) for the ground under the saved flight profile
+lat, lon = 55 - y, 18 + x
+h = 40 + 70 * np.sin(lat * 40) * np.cos(lon * 30) + 35 * np.sin(lon * 90 + lat * 20)
+np.clip(h, 0, 250).astype(">i2").tofile(sys.argv[1].replace("N52E020", "N54E018"))
 PY
 g++ -std=c++17 -O2 -Ilib/navcore/src tools/preview/preview.cpp lib/navcore/src/*.cpp lib/navcore/src/ui/*.cpp -o "$T/preview"
 for l in pl en; do
